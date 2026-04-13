@@ -155,7 +155,7 @@ const parseDisks = (output: string) => {
 };
 
 export default function App() {
-  const APP_VERSION = 'v6.0.3';
+  const APP_VERSION = 'v6.0.4';
   const [data, setData] = useState(generateData());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -848,34 +848,34 @@ export default function App() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed left-0 top-0 h-full transition-all duration-300 z-50 border-r",
+        "fixed left-0 top-0 h-full transition-all duration-300 z-50 border-r flex flex-col",
         theme === 'light' ? "bg-[#141414] text-[#E4E3E0] border-transparent" : "bg-[#141414] text-[#E4E3E0] border-[#E4E3E0]/10",
         isSidebarOpen ? "w-64" : "w-20"
       )}>
-        <div className="p-6 flex items-center gap-3 border-b border-[#E4E3E0]/10">
-          <div className="w-8 h-8 bg-blue-600 flex items-center justify-center text-white font-bold text-xl">T</div>
+        <div className="p-6 flex-shrink-0 flex items-center gap-3 border-b border-[#E4E3E0]/10">
+          <div className="w-8 h-8 bg-blue-600 flex-shrink-0 flex items-center justify-center text-white font-bold text-xl">T</div>
           {isSidebarOpen && (
-            <div>
-              <h1 className="text-lg font-bold tracking-tighter uppercase">TuxPulse</h1>
-              <p className="text-[10px] opacity-40 uppercase font-bold tracking-widest leading-tight">Linux maintenance toolkit</p>
+            <div className="truncate">
+              <h1 className="text-lg font-bold tracking-tighter uppercase truncate">TuxPulse</h1>
+              <p className="text-[10px] opacity-40 uppercase font-bold tracking-widest leading-tight truncate">Linux maintenance toolkit</p>
               <p className="text-[10px] opacity-60 font-bold tracking-widest mt-1">{APP_VERSION}</p>
             </div>
           )}
         </div>
 
-        <div className="px-4 py-4 border-b border-[#E4E3E0]/10">
+        <div className="px-4 py-4 flex-shrink-0 border-b border-[#E4E3E0]/10">
           <p className="text-[10px] uppercase opacity-40 font-bold tracking-widest px-2">Distribution</p>
           <div className="flex items-center gap-2 px-2 mt-1">
             <p className="text-xs font-bold truncate">{kernelInfo.distro}</p>
-            {distroType !== 'unknown' && (
-              <span className="text-[8px] px-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded uppercase font-bold">
+            {distroType !== 'unknown' && isSidebarOpen && (
+              <span className="text-[8px] px-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded uppercase font-bold flex-shrink-0">
                 {distroType}
               </span>
             )}
           </div>
         </div>
 
-        <nav className="mt-4 px-2 space-y-1 overflow-y-auto max-h-[calc(100vh-300px)]">
+        <nav className="flex-grow overflow-y-auto px-2 py-4 space-y-1 custom-scrollbar">
           <NavItem icon={<LayoutDashboard />} label="Dashboard" active={activeTab === 'dashboard'} collapsed={!isSidebarOpen} onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={<Wrench />} label="Maintenance" active={activeTab === 'maintenance'} collapsed={!isSidebarOpen} onClick={() => setActiveTab('maintenance')} />
           <NavItem icon={<HardDrive />} label="Disk" active={activeTab === 'disk'} collapsed={!isSidebarOpen} onClick={() => setActiveTab('disk')} />
@@ -888,7 +888,7 @@ export default function App() {
           <NavItem icon={<Info />} label="About" active={activeTab === 'about'} collapsed={!isSidebarOpen} onClick={() => setActiveTab('about')} />
         </nav>
 
-        <div className="absolute bottom-0 w-full p-4 border-t border-[#E4E3E0]/10">
+        <div className="flex-shrink-0 p-4 border-t border-[#E4E3E0]/10 bg-[#141414]">
           <button 
             onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
             className={cn(
@@ -1756,80 +1756,112 @@ export default function App() {
           )}
 
           {activeTab === 'about' && (
-            <div className="max-w-4xl space-y-12">
-              <div className="text-center space-y-4">
-                <div className="w-24 h-24 bg-blue-600 mx-auto flex items-center justify-center text-white font-bold text-5xl">T</div>
-                <h2 className="text-5xl font-bold tracking-tighter uppercase italic">TuxPulse</h2>
-                <p className="text-sm font-bold opacity-40 uppercase tracking-widest">
-                  Current: {APP_VERSION} | Latest: {latestVersion}
-                  {updateAvailable && (
-                    <button 
-                      onClick={() => openExternal('https://github.com/eoliann/tuxpulse/releases')}
-                      className="ml-4 px-3 py-1 bg-blue-600 text-white text-[10px] rounded-full hover:bg-blue-700 transition-all"
-                    >
-                      Update Available
-                    </button>
-                  )}
+            <div className="w-full max-w-5xl mx-auto space-y-12 pb-12">
+              <div className="text-center space-y-6">
+                <div className="w-24 h-24 bg-blue-600 mx-auto flex items-center justify-center text-white font-bold text-5xl shadow-2xl">T</div>
+                <div className="space-y-2">
+                  <h2 className="text-4xl md:text-6xl font-bold tracking-tighter uppercase italic">TuxPulse</h2>
+                  <p className="text-xs font-bold opacity-40 uppercase tracking-[0.3em]">
+                    Current: {APP_VERSION} | Latest: {latestVersion}
+                    {updateAvailable && (
+                      <button 
+                        onClick={() => openExternal('https://github.com/eoliann/tuxpulse/releases')}
+                        className="ml-4 px-3 py-1 bg-blue-600 text-white text-[10px] rounded-full hover:bg-blue-700 transition-all animate-pulse"
+                      >
+                        Update Available
+                      </button>
+                    )}
+                  </p>
+                </div>
+                <p className="text-lg md:text-2xl font-serif italic opacity-60 max-w-2xl mx-auto">
+                  High-performance system toolkit for Linux maintenance, cleanup and real-time monitoring.
                 </p>
-                <p className="text-xl font-serif italic opacity-60">System Toolkit - Update, cleanup and monitoring for Linux systems</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div className="space-y-6">
-                  <h3 className="text-2xl font-bold uppercase tracking-tight border-b border-current pb-2">The Project</h3>
-                  <p className="opacity-80 leading-relaxed font-serif">
-                    TuxPulse is a high-performance system management toolkit designed for Linux distributions. 
-                    It provides a unified interface for system updates, cleanup, and real-time monitoring while maintaining a strict security posture.
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 border border-blue-500/30 bg-blue-500/5">
-                      <h4 className="text-[10px] font-bold uppercase text-blue-500 mb-1">Architecture</h4>
-                      <p className="text-[10px] opacity-70">Rust (Tauri v2) & TypeScript (React 19)</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                <div className="space-y-8">
+                  <div className="space-y-4">
+                    <h3 className="text-2xl font-bold uppercase tracking-tight border-b border-current pb-2">The Project</h3>
+                    <p className="opacity-80 leading-relaxed font-serif text-lg">
+                      TuxPulse is a high-performance system management toolkit designed for Linux distributions. 
+                      It provides a unified interface for system updates, cleanup, and real-time monitoring while maintaining a strict security posture.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-5 border border-blue-500/30 bg-blue-500/5 backdrop-blur-sm">
+                      <h4 className="text-[10px] font-bold uppercase text-blue-500 mb-2 tracking-widest">Architecture</h4>
+                      <p className="text-xs opacity-70 font-mono">Rust (Tauri v2) & React 19</p>
                     </div>
-                    <div className="p-4 border border-green-500/30 bg-green-500/5">
-                      <h4 className="text-[10px] font-bold uppercase text-green-500 mb-1">Security Audit</h4>
-                      <p className="text-[10px] opacity-70">Command Allow-listing & Root Isolation</p>
+                    <div className="p-5 border border-green-500/30 bg-green-500/5 backdrop-blur-sm">
+                      <h4 className="text-[10px] font-bold uppercase text-green-500 mb-2 tracking-widest">Security Audit</h4>
+                      <p className="text-xs opacity-70 font-mono">Command Allow-listing & Root Isolation</p>
                     </div>
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex flex-wrap gap-4">
                     <button 
                       onClick={() => openExternal('https://github.com/eoliann/tuxpulse')}
                       className={cn(
-                        "px-6 py-2 border font-bold uppercase text-xs tracking-widest transition-all",
+                        "flex-1 min-w-[140px] px-6 py-3 border font-bold uppercase text-[10px] tracking-widest transition-all",
                         theme === 'light' ? "border-[#141414] hover:bg-[#141414] hover:text-[#E4E3E0]" : "border-[#E4E3E0]/20 hover:bg-[#E4E3E0] hover:text-[#141414]"
                       )}
                     >GitHub Repo</button>
                     <button 
                       onClick={() => openExternal('https://t.me/tuxpulse')}
                       className={cn(
-                        "px-6 py-2 border font-bold uppercase text-xs tracking-widest transition-all bg-blue-600 text-white border-blue-600 hover:bg-blue-700",
+                        "flex-1 min-w-[140px] px-6 py-3 border font-bold uppercase text-[10px] tracking-widest transition-all bg-blue-600 text-white border-blue-600 hover:bg-blue-700",
                       )}
                     >Telegram Group</button>
                     <button 
                       onClick={() => openExternal('https://tuxpulse.org/docs')}
                       className={cn(
-                        "px-6 py-2 border font-bold uppercase text-xs tracking-widest transition-all",
+                        "flex-1 min-w-[140px] px-6 py-3 border font-bold uppercase text-[10px] tracking-widest transition-all",
                         theme === 'light' ? "border-[#141414] hover:bg-[#141414] hover:text-[#E4E3E0]" : "border-[#E4E3E0]/20 hover:bg-[#E4E3E0] hover:text-[#141414]"
                       )}
                     >Documentation</button>
                   </div>
                 </div>
 
-                <div className="space-y-6">
-                  <h3 className="text-2xl font-bold uppercase tracking-tight border-b border-current pb-2">Contributors</h3>
-                  <div className="space-y-4">
-                    <Contributor name="eoliann" role="Lead Developer / Security Auditor" />
-                    <Contributor name="Community" role="Testing & Documentation" />
+                <div className="space-y-10">
+                  <div className="space-y-6">
+                    <h3 className="text-2xl font-bold uppercase tracking-tight border-b border-current pb-2">Support the Project</h3>
+                    <p className="opacity-70 text-sm font-serif italic">
+                      If TuxPulse helps you keep your system clean and fast, consider supporting its development.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <button 
+                        onClick={() => openExternal('https://www.paypal.com/donate/?hosted_button_id=PTH2EXUDS423S')}
+                        className="flex items-center justify-center gap-3 p-4 bg-[#003087] text-white hover:bg-[#002466] transition-all group"
+                      >
+                        <span className="font-bold italic text-lg tracking-tighter">PayPal</span>
+                        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                      <button 
+                        onClick={() => openExternal('http://revolut.me/adriannm9?style=plastic')}
+                        className="flex items-center justify-center gap-3 p-4 bg-white text-black border border-black/10 hover:bg-gray-50 transition-all group"
+                      >
+                        <span className="font-bold text-lg tracking-tighter">Revolut</span>
+                        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="pt-6">
-                    <h4 className="text-xs font-bold uppercase opacity-40 mb-2">License</h4>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-mono">MIT License</p>
+
+                  <div className="space-y-6">
+                    <h3 className="text-2xl font-bold uppercase tracking-tight border-b border-current pb-2">Contributors</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <Contributor name="eoliann" role="Lead Developer" />
+                      <Contributor name="Community" role="Testing & Docs" />
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-current/10">
+                    <h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">Legal & License</h4>
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <p className="text-xs font-mono opacity-60">MIT License © 2026</p>
                       <button 
                         onClick={() => setShowLicense(true)}
-                        className="text-[10px] font-bold uppercase underline hover:text-blue-600 transition-colors"
+                        className="text-[10px] font-bold uppercase underline hover:text-blue-600 transition-colors tracking-widest"
                       >
-                        View Full License & Disclaimer
+                        Full License & Disclaimer
                       </button>
                     </div>
                   </div>

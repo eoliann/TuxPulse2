@@ -1,1 +1,38 @@
 @import "tailwindcss";
+
+@layer base {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(228, 227, 224, 0.1);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(228, 227, 224, 0.2);
+  }
+}
+
+/* Global scrollbar for the main content */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(20, 20, 20, 0.1);
+  border-radius: 10px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(228, 227, 224, 0.1);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 20, 20, 0.2);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(228, 227, 224, 0.2);
+}
