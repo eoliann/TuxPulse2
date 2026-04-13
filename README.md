@@ -11,7 +11,7 @@
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/eoliann/TuxPulse2/total?style=plastic)
 
 ![OS](https://img.shields.io/badge/OS-Linux-blue?style=plastic)
-![Lang](https://img.shields.io/badge/Lang-Python-magenta?style=plastic)
+![Lang](https://img.shields.io/badge/Lang-Rust+React+TypeScript-magenta?style=plastic)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=plastic)](LICENSE.md)
 
 # TuxPulse
