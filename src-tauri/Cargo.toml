@@ -1,0 +1,21 @@
+[package]
+name = "tuxpulse"
+version = "6.0.3"
+description = "Secure System Monitoring and Management Toolkit"
+authors = ["eoliann"]
+edition = "2021"
+rust-version = "1.60"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2.0", features = [] }
+
+[features]
+# by default Tauri runs in production mode
+# when `tauri dev` is run, it is executed with `custom-protocol` feature
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

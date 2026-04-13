@@ -1,0 +1,150 @@
+export const APPS_CATALOG: Record<string, any[]> = {
+  "Browsers": [
+    { id: "firefox", name: "Firefox", desc: "Fast, privacy-focused web browser.", packages: { apt: "firefox", pacman: "firefox", dnf: "firefox", zypper: "MozillaFirefox" }, flatpak: "org.mozilla.firefox" },
+    { id: "chromium", name: "Chromium", desc: "Open-source Chromium browser.", packages: { apt: "chromium-browser", pacman: "chromium", dnf: "chromium", zypper: "chromium" }, flatpak: "org.chromium.Chromium" },
+    { id: "brave", name: "Brave", desc: "Privacy-focused browser. Native package may require extra repository.", packages: { apt: "brave-browser", pacman: "brave", dnf: "brave-browser", zypper: "brave-browser" }, flatpak: "com.brave.Browser" },
+    { id: "vivaldi", name: "Vivaldi", desc: "Feature-rich browser for power users.", packages: { apt: "vivaldi-stable", pacman: "vivaldi", dnf: "vivaldi-stable", zypper: "vivaldi-stable" }, flatpak: "com.vivaldi.Vivaldi" },
+    { id: "opera", name: "Opera", desc: "Feature-rich browser with built-in VPN.", packages: { apt: "opera-stable", pacman: "opera", dnf: "opera-stable", zypper: "opera" }, flatpak: "com.opera.Opera" },
+    { id: "tor", name: "Tor Browser", desc: "Privacy-focused browser using Tor network.", packages: { apt: "torbrowser-launcher", pacman: "torbrowser-launcher", dnf: "torbrowser-launcher", zypper: "torbrowser-launcher" }, flatpak: "com.github.micahflee.torbrowser-launcher" },
+    { id: "mullvad-browser", name: "Mullvad Browser", desc: "Privacy-focused browser. Native packages are officially available for Debian/Ubuntu and Fedora.", packages: { apt: "mullvad-browser", pacman: "", dnf: "mullvad-browser", zypper: "" }, flatpak: "net.mullvad.MullvadBrowser" }
+  ],
+  "Development": [
+    { id: "git", name: "Git", desc: "Distributed version control system.", packages: { apt: "git", pacman: "git", dnf: "git", zypper: "git" } },
+    { id: "vscode", name: "Visual Studio Code", desc: "Code editor. Native package may require third-party repository.", packages: { apt: "code", pacman: "code", dnf: "code", zypper: "code" }, flatpak: "com.visualstudio.code" },
+    { id: "vscodium", name: "VSCodium", desc: "Telemetry-free build of VS Code.", packages: { apt: "codium", pacman: "codium", dnf: "codium", zypper: "codium" }, flatpak: "com.vscodium.codium" },
+    { id: "docker", name: "Docker", desc: "Container runtime and tooling.", packages: { apt: "docker.io", pacman: "docker", dnf: "docker", zypper: "docker" } },
+    { id: "nodejs", name: "Node.js", desc: "JavaScript runtime.", packages: { apt: "nodejs", pacman: "nodejs", dnf: "nodejs", zypper: "nodejs" } },
+    { id: "python3", name: "Python 3", desc: "Python programming language.", packages: { apt: "python3", pacman: "python", dnf: "python3", zypper: "python3" } },
+    { id: "cmake", name: "CMake", desc: "Cross-platform build system generator.", packages: { apt: "cmake", pacman: "cmake", dnf: "cmake", zypper: "cmake" } },
+    { id: "jq", name: "jq", desc: "Command-line JSON processor useful for API work and automation.", packages: { apt: "jq", pacman: "jq", dnf: "jq", zypper: "jq" } },
+    { id: "ripgrep", name: "ripgrep", desc: "Fast recursive search tool for codebases and text files.", packages: { apt: "ripgrep", pacman: "ripgrep", dnf: "ripgrep", zypper: "ripgrep" } },
+    { id: "tmux", name: "tmux", desc: "Terminal multiplexer for persistent shell sessions.", packages: { apt: "tmux", pacman: "tmux", dnf: "tmux", zypper: "tmux" } },
+    { id: "postman", name: "Postman", desc: "API testing and development platform.", packages: { apt: "postman", pacman: "postman-bin", dnf: "postman", zypper: "postman" }, flatpak: "com.getpostman.Postman" },
+    { id: "intellij", name: "IntelliJ IDEA Community", desc: "Java IDE by JetBrains.", packages: { apt: "intellij-idea-community", pacman: "intellij-idea-community-edition", dnf: "intellij-idea-community", zypper: "intellij-idea-community" }, flatpak: "com.jetbrains.IntelliJ-IDEA-Community" },
+    { id: "pycharm", name: "PyCharm Community", desc: "Python IDE by JetBrains.", packages: { apt: "pycharm-community", pacman: "pycharm-community-edition", dnf: "pycharm-community", zypper: "pycharm-community" }, flatpak: "com.jetbrains.PyCharm-Community" },
+    { id: "android-studio", name: "Android Studio", desc: "IDE for Android development.", packages: { apt: "android-studio", pacman: "android-studio", dnf: "android-studio", zypper: "android-studio" }, flatpak: "com.google.AndroidStudio" },
+    { id: "dbeaver", name: "DBeaver", desc: "Universal database tool.", packages: { apt: "dbeaver-ce", pacman: "dbeaver", dnf: "dbeaver", zypper: "dbeaver" }, flatpak: "io.dbeaver.DBeaverCommunity" },
+    { id: "insomnia", name: "Insomnia", desc: "API client alternative to Postman.", packages: { apt: "insomnia", pacman: "insomnia", dnf: "insomnia", zypper: "insomnia" }, flatpak: "rest.insomnia.Insomnia" },
+    { id: "github-desktop", name: "GitHub Desktop", desc: "Desktop client for GitHub workflows.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "io.github.shiftey.Desktop" },
+    { id: "sqlitebrowser", name: "DB Browser for SQLite", desc: "Visual editor for SQLite databases.", packages: { apt: "sqlitebrowser", pacman: "sqlitebrowser", dnf: "sqlitebrowser", zypper: "sqlitebrowser" }, flatpak: "org.sqlitebrowser.sqlitebrowser" },
+    { id: "meld", name: "Meld", desc: "Visual diff and merge tool.", packages: { apt: "meld", pacman: "meld", dnf: "meld", zypper: "meld" }, flatpak: "org.gnome.meld" },
+    { id: "eclipse", name: "Eclipse IDE", desc: "Popular IDE for Java and other languages.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.eclipse.Java" }
+  ],
+  "Multimedia": [
+    { id: "vlc", name: "VLC", desc: "Universal media player.", packages: { apt: "vlc", pacman: "vlc", dnf: "vlc", zypper: "vlc" }, flatpak: "org.videolan.VLC" },
+    { id: "gimp", name: "GIMP", desc: "Image editor.", packages: { apt: "gimp", pacman: "gimp", dnf: "gimp", zypper: "gimp" }, flatpak: "org.gimp.GIMP" },
+    { id: "pinta", name: "Pinta", desc: "Simple drawing and image editing app for quick everyday edits.", packages: { apt: "pinta", pacman: "pinta", dnf: "pinta", zypper: "pinta" }, flatpak: "com.github.PintaProject.Pinta" },
+    { id: "obs-studio", name: "OBS Studio", desc: "Streaming and screen recording software.", packages: { apt: "obs-studio", pacman: "obs-studio", dnf: "obs-studio", zypper: "obs-studio" }, flatpak: "com.obsproject.Studio" },
+    { id: "kdenlive", name: "Kdenlive", desc: "Video editor.", packages: { apt: "kdenlive", pacman: "kdenlive", dnf: "kdenlive", zypper: "kdenlive" }, flatpak: "org.kde.kdenlive" },
+    { id: "audacity", name: "Audacity", desc: "Audio editor and recorder.", packages: { apt: "audacity", pacman: "audacity", dnf: "audacity", zypper: "audacity" }, flatpak: "org.audacityteam.Audacity" },
+    { id: "spotify", name: "Spotify", desc: "Music streaming application.", packages: { apt: "spotify-client", pacman: "spotify-launcher", dnf: "spotify-client", zypper: "spotify-client" }, flatpak: "com.spotify.Client" },
+    { id: "handbrake", name: "HandBrake", desc: "Video transcoder.", packages: { apt: "handbrake", pacman: "handbrake", dnf: "handbrake", zypper: "handbrake" }, flatpak: "fr.handbrake.ghb" },
+    { id: "krita", name: "Krita", desc: "Digital painting software.", packages: { apt: "krita", pacman: "krita", dnf: "krita", zypper: "krita" }, flatpak: "org.kde.krita" },
+    { id: "inkscape", name: "Inkscape", desc: "Vector graphics editor.", packages: { apt: "inkscape", pacman: "inkscape", dnf: "inkscape", zypper: "inkscape" }, flatpak: "org.inkscape.Inkscape" },
+    { id: "blender", name: "Blender", desc: "3D creation suite.", packages: { apt: "blender", pacman: "blender", dnf: "blender", zypper: "blender" }, flatpak: "org.blender.Blender" },
+    { id: "mpv", name: "mpv", desc: "Minimalist media player with broad codec support.", packages: { apt: "mpv", pacman: "mpv", dnf: "mpv", zypper: "mpv" }, flatpak: "io.mpv.Mpv" },
+    { id: "shotcut", name: "Shotcut", desc: "Open-source video editor.", packages: { apt: "shotcut", pacman: "shotcut", dnf: "shotcut", zypper: "shotcut" }, flatpak: "org.shotcut.Shotcut" },
+    { id: "openshot", name: "OpenShot", desc: "Easy-to-use open-source video editor.", packages: { apt: "openshot-qt", pacman: "", dnf: "openshot", zypper: "openshot-qt" }, flatpak: "org.openshot.OpenShot" },
+    { id: "losslesscut", name: "LosslessCut", desc: "Fast tool for trimming audio and video without re-encoding.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "no.mifi.losslesscut" }
+  ],
+  "Communication": [
+    { id: "telegram", name: "Telegram Desktop", desc: "Desktop client for Telegram.", packages: { apt: "telegram-desktop", pacman: "telegram-desktop", dnf: "telegram-desktop", zypper: "telegram-desktop" }, flatpak: "org.telegram.desktop" },
+    { id: "discord", name: "Discord", desc: "Voice, chat and community platform.", packages: { apt: "discord", pacman: "discord", dnf: "discord", zypper: "discord" }, flatpak: "com.discordapp.Discord" },
+    { id: "thunderbird", name: "Thunderbird", desc: "Email client.", packages: { apt: "thunderbird", pacman: "thunderbird", dnf: "thunderbird", zypper: "MozillaThunderbird" }, flatpak: "org.mozilla.Thunderbird" },
+    { id: "signal", name: "Signal", desc: "Secure messaging application.", packages: { apt: "signal-desktop", pacman: "signal-desktop", dnf: "signal-desktop", zypper: "signal-desktop" }, flatpak: "org.signal.Signal" },
+    { id: "slack", name: "Slack", desc: "Team communication platform.", packages: { apt: "slack-desktop", pacman: "slack-desktop", dnf: "slack", zypper: "slack" }, flatpak: "com.slack.Slack" },
+    { id: "zoom", name: "Zoom", desc: "Video conferencing tool.", packages: { apt: "zoom", pacman: "zoom", dnf: "zoom", zypper: "zoom" }, flatpak: "us.zoom.Zoom" },
+    { id: "element", name: "Element", desc: "Matrix-based secure chat.", packages: { apt: "element-desktop", pacman: "element-desktop", dnf: "element", zypper: "element-desktop" }, flatpak: "im.riot.Riot" }
+  ],
+  "Security": [
+    { id: "keepassxc", name: "KeePassXC", desc: "Offline password manager.", packages: { apt: "keepassxc", pacman: "keepassxc", dnf: "keepassxc", zypper: "keepassxc" }, flatpak: "org.keepassxc.KeePassXC" },
+    { id: "bitwarden", name: "Bitwarden", desc: "Cross-platform password manager.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.bitwarden.desktop" },
+    { id: "proton-pass", name: "Proton Pass", desc: "Encrypted password manager and alias tool.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "me.proton.Pass" },
+    { id: "authenticator", name: "Authenticator", desc: "Two-factor authentication code generator.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.belmoussaoui.Authenticator" },
+    { id: "yubico-authenticator", name: "Yubico Authenticator", desc: "Generate OTP codes with a YubiKey.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.yubico.yubioath" },
+    { id: "onionshare", name: "OnionShare", desc: "Securely and anonymously share files using Tor.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.onionshare.OnionShare" },
+    { id: "protonvpn", name: "Proton VPN", desc: "VPN client focused on privacy and secure connections.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.protonvpn.www" },
+    { id: "mullvad-vpn", name: "Mullvad VPN", desc: "Privacy-focused VPN client.", packages: { apt: "mullvad-vpn", pacman: "", dnf: "mullvad-vpn", zypper: "" } },
+    { id: "wireshark", name: "Wireshark", desc: "Network protocol analyzer.", packages: { apt: "wireshark", pacman: "wireshark-qt", dnf: "wireshark", zypper: "wireshark-qt" }, flatpak: "org.wireshark.Wireshark" }
+  ],
+  "Utilities": [
+    { id: "flatseal", name: "Flatseal", desc: "Manage Flatpak permissions.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.github.tchx84.Flatseal" },
+    { id: "warehouse", name: "Warehouse", desc: "Graphical manager for Flatpak applications.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "io.github.flattool.Warehouse" },
+    { id: "bleachbit", name: "BleachBit", desc: "Privacy and cleanup utility.", packages: { apt: "bleachbit", pacman: "bleachbit", dnf: "bleachbit", zypper: "bleachbit" }, flatpak: "org.bleachbit.BleachBit" },
+    { id: "simplescreenrecorder", name: "Simple screen recorder", desc: "Feature-rich screen recorder.", packages: { apt: "simplescreenrecorder", pacman: "simplescreenrecorder", dnf: "simplescreenrecorder", zypper: "simplescreenrecorder" } },
+    { id: "flameshot", name: "Flameshot", desc: "Screenshot and annotation tool.", packages: { apt: "flameshot", pacman: "flameshot", dnf: "flameshot", zypper: "flameshot" }, flatpak: "org.flameshot.Flameshot" }
+  ],
+  "Virtualization": [
+    { id: "gnome-boxes", name: "GNOME Boxes", desc: "Simple virtual machine manager.", packages: { apt: "gnome-boxes", pacman: "gnome-boxes", dnf: "gnome-boxes", zypper: "gnome-boxes" }, flatpak: "org.gnome.Boxes" },
+    { id: "virt-manager", name: "Virtual Machine Manager", desc: "Advanced libvirt manager.", packages: { apt: "virt-manager", pacman: "virt-manager", dnf: "virt-manager", zypper: "virt-manager" }, flatpak: "org.virt_manager.virt-manager" },
+    { id: "virtualbox", name: "Oracle VM VirtualBox", desc: "Desktop virtualization solution.", packages: { apt: "virtualbox", pacman: "virtualbox", dnf: "virtualbox", zypper: "virtualbox" } },
+    { id: "podman-desktop", name: "Podman Desktop", desc: "Graphical container and Kubernetes manager.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "io.podman_desktop.PodmanDesktop" },
+    { id: "distroshelf", name: "DistroShelf", desc: "Graphical interface for managing Distrobox containers.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.ranfdev.DistroShelf" }
+  ],
+  "Office": [
+    { id: "libreoffice", name: "LibreOffice", desc: "Office suite.", packages: { apt: "libreoffice", pacman: "libreoffice-fresh", dnf: "libreoffice", zypper: "libreoffice" }, flatpak: "org.libreoffice.LibreOffice" },
+    { id: "onlyoffice", name: "ONLYOFFICE", desc: "Office suite alternative.", packages: { apt: "onlyoffice-desktopeditors", pacman: "onlyoffice-bin", dnf: "onlyoffice-desktopeditors", zypper: "onlyoffice" }, flatpak: "org.onlyoffice.desktopeditors" },
+    { id: "calibre", name: "calibre", desc: "E-book manager and reader.", packages: { apt: "calibre", pacman: "calibre", dnf: "calibre", zypper: "calibre" }, flatpak: "com.calibre_ebook.calibre" },
+    { id: "foliate", name: "Foliate", desc: "Modern EPUB reader.", packages: { apt: "foliate", pacman: "foliate", dnf: "foliate", zypper: "foliate" }, flatpak: "com.github.johnfactotum.Foliate" },
+    { id: "okular", name: "Okular", desc: "Document viewer for PDF, EPUB and many other formats.", packages: { apt: "okular", pacman: "okular", dnf: "okular", zypper: "okular" }, flatpak: "org.kde.okular" }
+  ],
+  "Productivity": [
+    { id: "joplin", name: "Joplin", desc: "Markdown notes and to-do manager.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "net.cozic.joplin_desktop" },
+    { id: "obsidian", name: "Obsidian", desc: "Knowledge base and Markdown note-taking app.", packages: { apt: "", pacman: "obsidian", dnf: "", zypper: "" }, flatpak: "md.obsidian.Obsidian" },
+    { id: "notion", name: "Notion (Cohesion)", desc: "Unofficial Linux desktop client for Notion.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "io.github.brunofin.Cohesion" },
+    { id: "appflowy", name: "AppFlowy", desc: "Open-source workspace for notes, tasks and databases.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "io.appflowy.AppFlowy" },
+    { id: "anytype", name: "Anytype", desc: "Local-first workspace and knowledge base.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "io.anytype.anytype" },
+    { id: "standard-notes", name: "Standard Notes", desc: "Private notes application with sync support.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.standardnotes.standardnotes" },
+    { id: "logseq", name: "Logseq", desc: "Local-first knowledge base and outlining tool.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.logseq.Logseq" },
+    { id: "super-productivity", name: "Super Productivity", desc: "Task manager with time tracking.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.super_productivity.SuperProductivity" },
+    { id: "todoist", name: "Todoist", desc: "Task and project manager.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.todoist.Todoist" },
+    { id: "ticktick", name: "TickTick", desc: "Task manager with reminders.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.ticktick.TickTick" },
+    { id: "zotero", name: "Zotero", desc: "Reference manager for research materials.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.zotero.Zotero" },
+    { id: "xournalpp", name: "Xournal++", desc: "Handwritten notes and PDF annotation tool.", packages: { apt: "xournalpp", pacman: "xournalpp", dnf: "xournalpp", zypper: "xournalpp" }, flatpak: "com.github.xournalpp.xournalpp" },
+    { id: "drawio", name: "draw.io Desktop", desc: "Diagramming app.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.jgraph.drawio.desktop" },
+    { id: "anki", name: "Anki", desc: "Spaced-repetition flashcard application.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "net.ankiweb.Anki" }
+  ],
+  "Gaming": [
+    { id: "steam", name: "Steam", desc: "Gaming platform by Valve.", packages: { apt: "steam", pacman: "steam", dnf: "steam", zypper: "steam" }, flatpak: "com.valvesoftware.Steam" },
+    { id: "lutris", name: "Lutris", desc: "Game manager for Linux.", packages: { apt: "lutris", pacman: "lutris", dnf: "lutris", zypper: "lutris" }, flatpak: "net.lutris.Lutris" },
+    { id: "heroic", name: "Heroic Games Launcher", desc: "Launcher for Epic, GOG and Amazon Games.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.heroicgameslauncher.hgl" },
+    { id: "bottles", name: "Bottles", desc: "Manage Wine environments for Windows apps and games.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.usebottles.bottles" },
+    { id: "prism-launcher", name: "Prism Launcher", desc: "Minecraft launcher with multi-instance support.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.prismlauncher.PrismLauncher" }
+  ],
+  "Education": [
+    { id: "geogebra", name: "GeoGebra", desc: "Dynamic mathematics software.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.geogebra.GeoGebra" },
+    { id: "stellarium", name: "Stellarium", desc: "Desktop planetarium.", packages: { apt: "stellarium", pacman: "stellarium", dnf: "stellarium", zypper: "stellarium" }, flatpak: "org.stellarium.Stellarium" },
+    { id: "kiwix", name: "Kiwix", desc: "Offline reader for Wikipedia.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.kiwix.desktop" },
+    { id: "freecad", name: "FreeCAD", desc: "Parametric 3D CAD modeler.", packages: { apt: "freecad", pacman: "freecad", dnf: "freecad", zypper: "FreeCAD" }, flatpak: "org.freecad.FreeCAD" },
+    { id: "octave", name: "GNU Octave", desc: "Numerical computing environment.", packages: { apt: "octave", pacman: "octave", dnf: "octave", zypper: "octave" }, flatpak: "org.octave.Octave" },
+    { id: "marble", name: "Marble", desc: "Virtual globe and world atlas.", packages: { apt: "marble", pacman: "marble", dnf: "marble", zypper: "marble" }, flatpak: "org.kde.marble" },
+    { id: "gcompris", name: "GCompris", desc: "Educational suite for children.", packages: { apt: "gcompris-qt", pacman: "gcompris-qt", dnf: "gcompris-qt", zypper: "gcompris-qt" }, flatpak: "org.kde.gcompris" }
+  ],
+  "Networking": [
+    { id: "remmina", name: "Remmina", desc: "Remote desktop client.", packages: { apt: "remmina", pacman: "remmina", dnf: "remmina", zypper: "remmina" }, flatpak: "org.remmina.Remmina" },
+    { id: "rustdesk", name: "RustDesk", desc: "Open-source remote desktop application.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "com.rustdesk.RustDesk" },
+    { id: "transmission", name: "Transmission", desc: "Lightweight BitTorrent client.", packages: { apt: "transmission-gtk", pacman: "transmission-gtk", dnf: "transmission-gtk", zypper: "transmission-gtk" }, flatpak: "com.transmissionbt.Transmission" },
+    { id: "qbittorrent", name: "qBittorrent", desc: "BitTorrent client.", packages: { apt: "qbittorrent", pacman: "qbittorrent", dnf: "qbittorrent", zypper: "qbittorrent" }, flatpak: "org.qbittorrent.qBittorrent" },
+    { id: "deluge", name: "Deluge", desc: "BitTorrent client.", packages: { apt: "deluge", pacman: "deluge", dnf: "deluge", zypper: "deluge" }, flatpak: "org.deluge_torrent.deluge" },
+    { id: "nicotine", name: "Nicotine+", desc: "Graphical client for the Soulseek network.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.nicotine_plus.Nicotine" },
+    { id: "localsend", name: "LocalSend", desc: "Cross-platform local network file sharing.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.localsend.localsend_app" },
+    { id: "nextcloud", name: "Nextcloud Desktop Client", desc: "File sync and collaboration client.", packages: { apt: "nextcloud-desktop", pacman: "nextcloud-client", dnf: "nextcloud-client", zypper: "nextcloud-desktop" }, flatpak: "com.nextcloud.desktopclient.nextcloud" },
+    { id: "warp", name: "Warp", desc: "Simple secure file transfer.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "app.drey.Warp" },
+    { id: "filezilla", name: "FileZilla", desc: "FTP/SFTP client.", packages: { apt: "filezilla", pacman: "filezilla", dnf: "filezilla", zypper: "filezilla" }, flatpak: "org.filezillaproject.Filezilla" }
+  ],
+  "System Tools": [
+    { id: "htop", name: "htop", desc: "Interactive process viewer.", packages: { apt: "htop", pacman: "htop", dnf: "htop", zypper: "htop" } },
+    { id: "btop", name: "btop", desc: "Terminal-based resource monitor.", packages: { apt: "btop", pacman: "btop", dnf: "btop", zypper: "btop" } },
+    { id: "neofetch", name: "Neofetch", desc: "System information tool.", packages: { apt: "neofetch", pacman: "neofetch", dnf: "neofetch", zypper: "neofetch" } },
+    { id: "stacer", name: "Stacer", desc: "System optimizer and monitor.", packages: { apt: "stacer", pacman: "stacer", dnf: "stacer", zypper: "stacer" }, flatpak: "com.github.oguzhaninan.Stacer" },
+    { id: "mission-center", name: "Mission Center", desc: "Modern system monitor.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "io.missioncenter.MissionCenter" },
+    { id: "resources", name: "Resources", desc: "Simple GNOME system monitor.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "net.nokyan.Resources" },
+    { id: "gnome-disk-utility", name: "Disks", desc: "Disk management tool.", packages: { apt: "gnome-disk-utility", pacman: "gnome-disk-utility", dnf: "gnome-disk-utility", zypper: "gnome-disk-utility" } },
+    { id: "gparted", name: "GParted", desc: "Partition editor.", packages: { apt: "gparted", pacman: "gparted", dnf: "gparted", zypper: "gparted" } },
+    { id: "baobab", name: "Disk Usage Analyzer", desc: "Analyze disk usage.", packages: { apt: "baobab", pacman: "baobab", dnf: "baobab", zypper: "baobab" }, flatpak: "org.gnome.baobab" },
+    { id: "timeshift", name: "Timeshift", desc: "System snapshot utility.", packages: { apt: "timeshift", pacman: "timeshift", dnf: "timeshift", zypper: "timeshift" } },
+    { id: "pika-backup", name: "Pika Backup", desc: "Simple backup application.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "org.gnome.World.PikaBackup" },
+    { id: "cpu-x", name: "CPU-X", desc: "Hardware information utility.", packages: { apt: "", pacman: "", dnf: "", zypper: "" }, flatpak: "io.github.thetumultuousunicornofdarkness.cpu-x" },
+    { id: "gnome-logs", name: "Logs", desc: "View systemd journal.", packages: { apt: "gnome-logs", pacman: "gnome-logs", dnf: "gnome-logs", zypper: "gnome-logs" }, flatpak: "org.gnome.Logs" }
+  ]
+};

@@ -1,0 +1,16 @@
+[Unit]
+Description=TuxPulse Secure Helper Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /usr/local/bin/tuxpulse_helper_secure.py
+Restart=on-failure
+# Security hardening
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

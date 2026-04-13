@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>TuxPulse</vendor>
+  <vendor_url>https://github.com/eoliann/TuxPulse</vendor_url>
+  <action id="com.eoliann.tuxpulse.manage">
+    <description>Manage system updates and cleanup via TuxPulse</description>
+    <message>Authentication is required to perform system maintenance.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/bin/tuxpulse_helper_secure.py</annotate>
+  </action>
+</policyconfig>
