@@ -28,6 +28,38 @@
 - **Security Audit**: Scan for common security vulnerabilities like open ports or world-writable configurations.
 - **System Logs**: Real-time access to `journalctl` logs for debugging.
 
+## Gallery
+
+<p align="center">
+  <img src="./assets/TuxPulse_v6.x-Dashboard.png" alt="TuxPulse2 Dashboard" width="45%">
+  <img src="./assets/TuxPulse_v6.x-Install.png" alt="TuxPulse2 Installer" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/TuxPulse_v6.x-Disk.png" alt="TuxPulse2 Disk" width="45%">
+  <img src="./assets/TuxPulse_v6.x-Kernel.png" alt="TuxPulse2 Kernel" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/TuxPulse_v6.x-Cleaner.png" alt="TuxPulse2 Cleaner" width="45%">
+  <img src="./assets/TuxPulse_v6.x-Cleaner_2.png" alt="TuxPulse2 Cleaner" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/TuxPulse_v6.x-Maintenance.png" alt="TuxPulse2 Maintenance" width="45%">
+  <img src="./assets/TuxPulse_v6.x-Maintenance_2.png" alt="TuxPulse2 Maintenance" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/TuxPulse_v6.x-Packages.png" alt="TuxPulse2 Packages" width="45%">
+  <img src="./assets/TuxPulse_v6.x-Services.png" alt="TuxPulse2 Services" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/TuxPulse_v6.x-Startup.png" alt="TuxPulse2 Startup" width="45%">
+  <img src="./assets/TuxPulse_v6.x-About.png" alt="TuxPulse2 About" width="45%">
+</p>
+
 ## 🚀 Installation
 
 ### Prerequisites
