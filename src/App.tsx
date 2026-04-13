@@ -293,12 +293,11 @@ export default function App() {
   useEffect(() => {
     const checkVersion = async () => {
       try {
-        const response = await fetch('https://api.github.com/repos/eoliann/tuxpulse/releases/latest');
+        const response = await fetch('https://api.github.com/repos/eoliann/TuxPulse2/releases/latest');
         const data = await response.json();
         if (data.tag_name) {
           setLatestVersion(data.tag_name);
-          const current = "v6.0.0";
-          if (isNewerVersion(data.tag_name, current)) {
+          if (isNewerVersion(data.tag_name, APP_VERSION)) {
             setUpdateAvailable(true);
           }
         }
@@ -834,7 +833,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => openExternal('https://github.com/eoliann/tuxpulse/releases')}
+              onClick={() => openExternal('https://github.com/eoliann/TuxPulse2/releases')}
               className="text-[10px] font-bold uppercase border border-white/30 px-3 py-1 hover:bg-white hover:text-blue-600 transition-all"
             >
               View Release
@@ -1765,7 +1764,7 @@ export default function App() {
                     Current: {APP_VERSION} | Latest: {latestVersion}
                     {updateAvailable && (
                       <button 
-                        onClick={() => openExternal('https://github.com/eoliann/tuxpulse/releases')}
+                        onClick={() => openExternal('https://github.com/eoliann/TuxPulse2/releases')}
                         className="ml-4 px-3 py-1 bg-blue-600 text-white text-[10px] rounded-full hover:bg-blue-700 transition-all animate-pulse"
                       >
                         Update Available
@@ -1799,7 +1798,7 @@ export default function App() {
                   </div>
                   <div className="flex flex-wrap gap-4">
                     <button 
-                      onClick={() => openExternal('https://github.com/eoliann/tuxpulse')}
+                      onClick={() => openExternal('https://github.com/eoliann/TuxPulse2')}
                       className={cn(
                         "flex-1 min-w-[140px] px-6 py-3 border font-bold uppercase text-[10px] tracking-widest transition-all",
                         theme === 'light' ? "border-[#141414] hover:bg-[#141414] hover:text-[#E4E3E0]" : "border-[#E4E3E0]/20 hover:bg-[#E4E3E0] hover:text-[#141414]"
