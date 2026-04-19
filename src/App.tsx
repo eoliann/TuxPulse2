@@ -155,7 +155,7 @@ const parseDisks = (output: string) => {
 };
 
 export default function App() {
-  const APP_VERSION = 'v6.0.5';
+  const APP_VERSION = 'v6.0.6';
   const [data, setData] = useState(generateData());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [alerts, setAlerts] = useState<any[]>([]);
