@@ -1,0 +1,12 @@
+pkgname=tuxpulse
+pkgver=6.0.4
+pkgrel=1
+pkgdesc="Secure System Monitoring and Management Toolkit"
+arch=('x86_64')
+url="https://github.com/eoliann/tuxpulse"
+license=('GPL3')
+depends=('openssl' 'gtk3' 'libappindicator-gtk3')
+
+package() {
+  cp -a "$srcdir/package/." "$pkgdir/"
+}

@@ -155,7 +155,7 @@ const parseDisks = (output: string) => {
 };
 
 export default function App() {
-  const APP_VERSION = 'v6.0.4';
+  const APP_VERSION = 'v6.0.5';
   const [data, setData] = useState(generateData());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -165,6 +165,8 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
+  const [selectedDNS, setSelectedDNS] = useState<string>('default');
+  const [isDNSSetting, setIsDNSSetting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [isNative, setIsNative] = useState(false);
@@ -215,6 +217,61 @@ export default function App() {
     logins: 5,
     network: 10
   });
+
+  const DNS_PROVIDERS = [
+    { name: 'System Default', id: 'default', primary: '', secondary: '' },
+    { name: 'Cloudflare', id: 'cloudflare', primary: '1.1.1.1', secondary: '1.0.0.1' },
+    { name: 'Google', id: 'google', primary: '8.8.8.8', secondary: '8.8.4.4' },
+    { name: 'OpenDNS', id: 'opendns', primary: '208.67.222.222', secondary: '208.67.220.220' },
+    { name: 'Quad9', id: 'quad9', primary: '9.9.9.9', secondary: '149.112.112.112' },
+    { name: 'AdGuard', id: 'adguard', primary: '94.140.14.14', secondary: '94.140.15.15' },
+  ];
+
+  const setSystemDNS = async (providerId: string) => {
+    const provider = DNS_PROVIDERS.find(p => p.id === providerId);
+    if (!provider) return;
+
+    setIsDNSSetting(true);
+    setSelectedDNS(providerId);
+    setMaintenanceOutput(prev => prev + `\nChanging DNS to ${provider.name}...\n`);
+    addAlert('info', `Configuring DNS: ${provider.name}`);
+
+    if (isNative) {
+      try {
+        const connRes = await runCommand('nmcli', ['-t', '-f', 'NAME,TYPE,STATE', 'con', 'show', '--active']);
+        const activeConnections = connRes.output.split('\n')
+          .filter((line: string) => line.trim() !== '' && (line.includes('ethernet') || line.includes('wireless')))
+          .map((line: string) => line.split(':')[0]);
+
+        if (activeConnections.length === 0) {
+          setMaintenanceOutput(prev => prev + "Error: No active network connections found to configure.\n");
+        } else {
+          for (const conn of activeConnections) {
+            setMaintenanceOutput(prev => prev + `Configuring connection: ${conn}...\n`);
+            if (providerId === 'default') {
+              await runCommand('nmcli', ['con', 'mod', conn, 'ipv4.dns', '', 'ipv4.ignore-auto-dns', 'no'], true);
+            } else {
+              const dnsStr = `${provider.primary} ${provider.secondary}`;
+              await runCommand('nmcli', ['con', 'mod', conn, 'ipv4.dns', dnsStr, 'ipv4.ignore-auto-dns', 'yes'], true);
+            }
+            await runCommand('nmcli', ['con', 'up', conn], true);
+          }
+          const successMsg = providerId === 'default' 
+            ? "DNS reset to system defaults across active connections.\n"
+            : `DNS successfully updated to ${provider.name} (${provider.primary} ${provider.secondary})\n`;
+          setMaintenanceOutput(prev => prev + successMsg);
+        }
+      } catch (err) {
+        setMaintenanceOutput(prev => prev + `Error setting DNS: ${err}\n`);
+        addAlert('error', 'DNS configuration failed');
+      }
+    } else {
+      addAlert('warning', `Simulated DNS change to ${provider.name}`);
+      setMaintenanceOutput(prev => prev + `Simulation: DNS changed to ${provider.name}\n`);
+    }
+
+    setIsDNSSetting(false);
+  };
 
   const runSecurityScan = async () => {
     setIsScanning(true);
@@ -1144,6 +1201,60 @@ export default function App() {
                   onClick={fixSpotifyGPG}
                   theme={theme}
                 />
+              </div>
+
+              {/* DNS Settings Section */}
+              <div className={cn(
+                "border p-6 space-y-6 mt-8",
+                theme === 'light' ? "bg-white border-[#141414]" : "bg-[#141414] border-[#E4E3E0]/10"
+              )}>
+                <div className="flex items-center gap-3 border-b border-current/10 pb-4">
+                  <div className="p-2 bg-blue-600/10 text-blue-600 rounded">
+                    <Globe size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold uppercase tracking-widest text-sm">DNS Configuration</h3>
+                    <p className="text-[10px] opacity-40 uppercase tracking-widest">Optimize your network connection</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {DNS_PROVIDERS.map((provider) => (
+                    <button
+                      key={provider.id}
+                      onClick={() => setSystemDNS(provider.id)}
+                      disabled={isDNSSetting}
+                      className={cn(
+                        "p-4 border text-left transition-all relative group overflow-hidden",
+                        selectedDNS === provider.id 
+                          ? "border-blue-600 bg-blue-600/5" 
+                          : (theme === 'light' ? "bg-white border-[#14141410] hover:border-[#141414]" : "bg-[#141414] border-[#E4E3E0]/10 hover:border-[#E4E3E0]/30"),
+                        isDNSSetting && "opacity-50 cursor-wait"
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-bold text-xs uppercase tracking-widest">{provider.name}</span>
+                        {selectedDNS === provider.id && (
+                          <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                        )}
+                      </div>
+                      <p className="text-[10px] font-mono opacity-50 truncate">
+                        {provider.primary || 'Auto-detect'} {provider.secondary && `| ${provider.secondary}`}
+                      </p>
+                      
+                      {/* Hover Effect Bar */}
+                      <div className={cn(
+                        "absolute bottom-0 left-0 h-0.5 bg-blue-600 transition-all duration-300",
+                        selectedDNS === provider.id ? "w-full" : "w-0 group-hover:w-full"
+                      )} />
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="pt-4 border-t border-current/10 flex items-center gap-4 text-[10px] opacity-40 italic">
+                  <Info size={12} />
+                  <p>Changes will apply to all active ethernet and wireless connections using NetworkManager (nmcli).</p>
+                </div>
               </div>
 
               {maintenanceOutput && (

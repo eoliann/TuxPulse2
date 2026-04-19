@@ -17,7 +17,7 @@ struct CommandResult {
 async fn execute_system_command(command: String, args: Vec<String>, sudo: Option<bool>) -> CommandResult {
     // Define allowed commands and their base arguments for security
     let allowed_commands = vec![
-        "systemctl", "ps", "df", "lsblk", "uname", "lsmod", "journalctl", "ip", 
+        "nmcli", "systemctl", "ps", "df", "lsblk", "uname", "lsmod", "journalctl", "ip", 
         "apt-get", "apt-cache", "apt", "dnf", "pacman", "free", "uptime", "hostnamectl", "lscpu", "lsusb", "lspci",
         "dpkg", "flatpak", "rm", "cat", "ls", "grep", "find", "sh", "bash", "pkexec", "zypper", "nala", "xdg-open"
     ];
