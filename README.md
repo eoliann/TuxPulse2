@@ -28,6 +28,37 @@
 - **Security Audit**: Scan for common security vulnerabilities like open ports or world-writable configurations.
 - **System Logs**: Real-time access to `journalctl` logs for debugging.
 
+## Galery
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Dashboard.png" alt="TuxPulse Dashboard" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Maintenance.png" alt="TuxPulse Maintenance" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Disk.png" alt="TuxPulse Disk Analyzer" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Kernel.png" alt="TuxPulse Kernel" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Cleaner.png" alt="TuxPulse Cleaner" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Startup.png" alt="TuxPulse Startup" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Services.png" alt="TuxPulse Services" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Packages.png" alt="TuxPulse Packages" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Installer.png" alt="TuxPulse Installer - Software Center" width="90%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-About.png" alt="TuxPulse About - Dark mode" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-About_2.png" alt="TuxPulse About - Light mode" width="45%">
+</p>
+
 ## 🚀 Installation
 
 ### Prerequisites
