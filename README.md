@@ -1,4 +1,20 @@
-# TuxPulse v6.0.3
+![Followers](https://img.shields.io/github/followers/eoliann?style=plastic&color=green)
+![Watchers](https://img.shields.io/github/watchers/eoliann/TuxPulse2?style=plastic)
+![Stars](https://img.shields.io/github/stars/eoliann/TuxPulse2?style=plastic)
+
+[![Group](https://img.shields.io/badge/Group-Telegram-blue?style=plastic)](https://t.me/tuxpulse)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue?style=plastic)](https://www.paypal.com/donate/?hosted_button_id=PTH2EXUDS423S)
+[![Donate](https://img.shields.io/badge/Donate-Revolut-8A2BE2?style=plastic)](http://revolut.me/adriannm9?style=plastic)
+
+![Release Date](https://img.shields.io/github/release-date/eoliann/TuxPulse2?style=plastic)
+![Last Commit](https://img.shields.io/github/last-commit/eoliann/TuxPulse2?style=plastic)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/eoliann/TuxPulse2/total?style=plastic)
+
+![OS](https://img.shields.io/badge/OS-Linux-blue?style=plastic)
+![Lang](https://img.shields.io/badge/Lang-Python-magenta?style=plastic)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=plastic)](LICENSE.md)
+
+# TuxPulse2
 
 **TuxPulse** is a professional, lightweight system monitoring and management toolkit for Linux distributions. Built with React and Tauri, it provides real-time insights into your system's health and powerful tools for maintenance.
 
@@ -11,6 +27,37 @@
 - **Software Center**: Browse and install popular Linux applications across different distributions (Debian, Arch, Fedora).
 - **Security Audit**: Scan for common security vulnerabilities like open ports or world-writable configurations.
 - **System Logs**: Real-time access to `journalctl` logs for debugging.
+
+## Galery
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Dashboard.png" alt="TuxPulse Dashboard" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Maintenance.png" alt="TuxPulse Maintenance" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Disk.png" alt="TuxPulse Disk Analyzer" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Kernel.png" alt="TuxPulse Kernel" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Cleaner.png" alt="TuxPulse Cleaner" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Startup.png" alt="TuxPulse Startup" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Services.png" alt="TuxPulse Services" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Packages.png" alt="TuxPulse Packages" width="45%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-Installer.png" alt="TuxPulse Installer - Software Center" width="90%">
+</p>
+
+<p align="center">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-About.png" alt="TuxPulse About - Dark mode" width="45%">
+  <img src="./assets/v6.0.5/TuxPulse_v6.0.5-About_2.png" alt="TuxPulse About - Light mode" width="45%">
+</p>
 
 ## 🚀 Installation
 
