@@ -515,6 +515,13 @@ export default function App() {
     let completedWithErrors = false;
 
     type SupportedDistro = 'debian' | 'arch' | 'fedora' | 'unknown';
+    type MaintenanceTask = {
+      label: string;
+      command: string;
+      args: string[];
+      sudo: boolean;
+      optional?: boolean;
+    };
 
     const appendOutput = (text: string) => {
       setMaintenanceOutput((prev: string) => prev + text);
@@ -559,36 +566,88 @@ export default function App() {
       return 'unknown';
     };
 
+    const buildFullMaintenanceTasks = (detectedDistro: SupportedDistro): MaintenanceTask[] => {
+      const flatpakTasks: MaintenanceTask[] = [
+        { label: 'Repair Flatpak installation', command: 'flatpak', args: ['repair'], sudo: true, optional: true },
+        { label: 'Update Flatpak applications', command: 'flatpak', args: ['update', '-y'], sudo: true, optional: true },
+        { label: 'Remove unused Flatpak runtimes and apps', command: 'flatpak', args: ['uninstall', '--unused', '-y'], sudo: true, optional: true },
+      ];
+
+      if (detectedDistro === 'debian') {
+        return [
+          { label: 'Update package database', command: 'apt-get', args: ['update'], sudo: true },
+          { label: 'Full system upgrade', command: 'apt-get', args: ['full-upgrade', '-y'], sudo: true },
+          { label: 'Remove orphaned packages', command: 'apt-get', args: ['autoremove', '-y'], sudo: true },
+          { label: 'Clean APT cache', command: 'apt-get', args: ['autoclean'], sudo: true },
+          ...flatpakTasks,
+        ];
+      }
+
+      if (detectedDistro === 'arch') {
+        return [
+          { label: 'Synchronize and upgrade packages', command: 'pacman', args: ['-Syu', '--noconfirm'], sudo: true },
+          { label: 'Clean pacman cache', command: 'pacman', args: ['-Sc', '--noconfirm'], sudo: true },
+          ...flatpakTasks,
+        ];
+      }
+
+      if (detectedDistro === 'fedora') {
+        return [
+          { label: 'Upgrade packages', command: 'dnf', args: ['upgrade', '-y'], sudo: true },
+          { label: 'Remove unused packages', command: 'dnf', args: ['autoremove', '-y'], sudo: true },
+          { label: 'Clean DNF cache', command: 'dnf', args: ['clean', 'all'], sudo: true },
+          ...flatpakTasks,
+        ];
+      }
+
+      return [];
+    };
+
     try {
       if (cmd === 'full') {
         addAlert('info', 'Full maintenance started');
-        setMaintenanceProgress(10);
 
         const detectedDistro = await detectMaintenanceDistro();
-        if (detectedDistro === 'unknown') {
+        const tasks = buildFullMaintenanceTasks(detectedDistro);
+
+        if (tasks.length === 0) {
           completedWithErrors = true;
           appendOutput('\n[ERROR] Unsupported or undetected Linux distribution. Full Maintenance was not executed.\n');
           return;
         }
 
         appendOutput(`Detected maintenance profile: ${detectedDistro}\n`);
-        appendOutput('> Requesting administrator authorization once for the full maintenance sequence...\n');
-        setMaintenanceProgress(30);
+        appendOutput('> Running maintenance sequence...\n');
 
-        if (isNative) {
-          const result: any = await invoke('execute_full_maintenance', { profile: detectedDistro });
+        const flatpakAvailable = await commandExists('flatpak');
+
+        for (let i = 0; i < tasks.length; i++) {
+          const task = tasks[i];
+          const visibleCommand = `${task.sudo ? 'sudo ' : ''}${task.command} ${task.args.join(' ')}`.trim();
+
+          if (task.command === 'flatpak' && !flatpakAvailable) {
+            appendOutput(`\n[${i + 1}/${tasks.length}] ${task.label}\n[SKIPPED] flatpak is not installed on this system.\n`);
+            setMaintenanceProgress(Math.round(((i + 1) / tasks.length) * 100));
+            continue;
+          }
+
+          appendOutput(`\n[${i + 1}/${tasks.length}] ${task.label}\n$ ${visibleCommand}\n`);
+
+          const result: any = await runCommand(task.command, task.args, task.sudo);
           const output = [result?.output, result?.error].filter(Boolean).join('\n').trim();
 
           if (output) {
-            appendOutput(output.endsWith('\n') ? output : `${output}\n`);
+            appendOutput(output.endsWith('\n') ? output : output + '\n');
           } else {
-            appendOutput('No output returned by the maintenance backend.\n');
+            appendOutput('OK\n');
           }
 
-          completedWithErrors = result?.success !== true;
-        } else {
-          addAlert('warning', 'Simulation mode: Maintenance sequence simulated.');
-          appendOutput('Simulation mode: no system changes were applied.\n');
+          if (!result?.success) {
+            completedWithErrors = true;
+            appendOutput('[WARNING] This maintenance step finished with errors. Continuing with the next step.\n');
+          }
+
+          setMaintenanceProgress(Math.round(((i + 1) / tasks.length) * 100));
         }
       } else {
         const parts = cmd.trim().split(/\s+/).filter(Boolean);
@@ -608,12 +667,12 @@ export default function App() {
         const output = [result?.output, result?.error].filter(Boolean).join('\n').trim();
 
         if (output) {
-          appendOutput(output.endsWith('\n') ? output : `${output}\n`);
+          appendOutput(output.endsWith('\n') ? output : output + '\n');
         } else {
           appendOutput('OK\n');
         }
 
-        completedWithErrors = result?.success !== true;
+        completedWithErrors = !result?.success;
       }
     } catch (err) {
       completedWithErrors = true;
@@ -629,7 +688,6 @@ export default function App() {
       addAlert(completedWithErrors ? 'warning' : 'success', finalMessage);
     }
   };
-
 
   const fixSpotifyGPG = async () => {
     setIsMaintenanceRunning(true);
