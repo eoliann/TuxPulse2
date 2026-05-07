@@ -3,7 +3,6 @@ import { APPS_CATALOG } from './constants/apps';
 import { APP_VERSION } from './version';
 // @ts-ignore
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { 
   Activity, 
   Shield, 
@@ -560,43 +559,6 @@ export default function App() {
       return 'unknown';
     };
 
-    const getFullMaintenancePlan = (profile: SupportedDistro): string[] => {
-      if (profile === 'debian') {
-        return [
-          'sudo apt-get update',
-          'sudo apt-get full-upgrade -y',
-          'sudo apt-get autoremove -y',
-          'sudo apt-get autoclean -y',
-          'sudo flatpak repair',
-          'sudo flatpak update -y',
-          'sudo flatpak uninstall --unused -y',
-        ];
-      }
-
-      if (profile === 'arch') {
-        return [
-          'sudo pacman -Syu --noconfirm',
-          'sudo pacman -Sc --noconfirm',
-          'sudo flatpak repair',
-          'sudo flatpak update -y',
-          'sudo flatpak uninstall --unused -y',
-        ];
-      }
-
-      if (profile === 'fedora') {
-        return [
-          'sudo dnf upgrade -y',
-          'sudo dnf autoremove -y',
-          'sudo dnf clean all',
-          'sudo flatpak repair',
-          'sudo flatpak update -y',
-          'sudo flatpak uninstall --unused -y',
-        ];
-      }
-
-      return [];
-    };
-
     try {
       if (cmd === 'full') {
         addAlert('info', 'Full maintenance started');
@@ -609,48 +571,21 @@ export default function App() {
           return;
         }
 
-        const plan = getFullMaintenancePlan(detectedDistro);
         appendOutput(`Detected maintenance profile: ${detectedDistro}\n`);
-        appendOutput('\nPlanned Full Maintenance sequence:\n');
-        plan.forEach((step, index) => {
-          appendOutput(`[${index + 1}/${plan.length}] ${step}\n`);
-        });
-        appendOutput('\nAdministrator authorization will be requested once. After approval, all steps will run in order.\n');
-        appendOutput('Live command output:\n');
-        setMaintenanceProgress(25);
+        appendOutput('> Requesting administrator authorization once for the full maintenance sequence...\n');
+        setMaintenanceProgress(30);
 
         if (isNative) {
-          let stopMaintenanceOutputListener: (() => void) | null = null;
+          const result: any = await invoke('execute_full_maintenance', { profile: detectedDistro });
+          const output = [result?.output, result?.error].filter(Boolean).join('\n').trim();
 
-          try {
-            stopMaintenanceOutputListener = await listen('tuxpulse://maintenance-output', (event: any) => {
-              const payload = event.payload as { stream?: string; line?: string } | string;
-              const line = typeof payload === 'string' ? payload : payload?.line;
-              if (line) {
-                appendOutput(line.endsWith('\n') ? line : `${line}\n`);
-                setMaintenanceProgress((prev: number) => Math.min(95, Math.max(prev, prev + 2)));
-              }
-            });
-
-            const result: any = await invoke('execute_full_maintenance_stream', { profile: detectedDistro });
-
-            const output = result?.output?.trim?.() || '';
-            const error = result?.error?.trim?.() || '';
-
-            if (output) {
-              appendOutput(output.endsWith('\n') ? output : `${output}\n`);
-            }
-
-            if (error) {
-              appendOutput(`\n[ERROR]\n${error}\n`);
-            }
-
-            completedWithErrors = result?.success !== true;
-          } finally {
-            if (stopMaintenanceOutputListener) {
-              stopMaintenanceOutputListener();
-            }
+          if (output) {
+            appendOutput(output.endsWith('\n') ? output : `${output}\n`);
+          } else {
+            appendOutput('No output returned by the maintenance backend.\n');
           }
+
+          completedWithErrors = result?.success !== true;
         } else {
           addAlert('warning', 'Simulation mode: Maintenance sequence simulated.');
           appendOutput('Simulation mode: no system changes were applied.\n');
