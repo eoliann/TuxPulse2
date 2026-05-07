@@ -507,120 +507,182 @@ export default function App() {
   }, [activeTab, isNative, kernelInfo.distro]);
 
   const [systemLogs, setSystemLogs] = useState<string[]>([]);
-
   const runMaintenance = async (cmd: string) => {
     setIsMaintenanceRunning(true);
     setMaintenanceProgress(0);
-    setMaintenanceOutput(`Starting: ${cmd}
-`);
+    setMaintenanceOutput(`Starting: ${cmd}\n`);
 
     let completedWithErrors = false;
 
+    type SupportedDistro = 'debian' | 'arch' | 'fedora' | 'unknown';
+    type MaintenanceTask = {
+      label: string;
+      command: string;
+      args: string[];
+      sudo: boolean;
+      optional?: boolean;
+    };
+
+    const appendOutput = (text: string) => {
+      setMaintenanceOutput((prev: string) => prev + text);
+    };
+
+    const normalizeDistro = (value: string): SupportedDistro => {
+      const distro = value.toLowerCase();
+      if (distro.includes('arch') || distro.includes('manjaro') || distro.includes('endeavouros') || distro.includes('cachyos')) {
+        return 'arch';
+      }
+      if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint') || distro.includes('pop')) {
+        return 'debian';
+      }
+      if (distro.includes('fedora') || distro.includes('redhat') || distro.includes('centos')) {
+        return 'fedora';
+      }
+      return 'unknown';
+    };
+
+    const commandExists = async (command: string): Promise<boolean> => {
+      if (!isNative) return true;
+      try {
+        const result: any = await invoke('execute_system_command', {
+          command: 'sh',
+          args: ['-c', `command -v ${command} >/dev/null 2>&1`],
+          sudo: false,
+        });
+        return result?.success === true;
+      } catch {
+        return false;
+      }
+    };
+
+    const detectMaintenanceDistro = async (): Promise<SupportedDistro> => {
+      const fromState = distroType !== 'unknown' ? distroType : normalizeDistro(kernelInfo.distro || '');
+      if (fromState !== 'unknown') return fromState;
+
+      if (await commandExists('pacman')) return 'arch';
+      if (await commandExists('apt-get')) return 'debian';
+      if (await commandExists('dnf')) return 'fedora';
+
+      return 'unknown';
+    };
+
+    const buildFullMaintenanceTasks = (detectedDistro: SupportedDistro): MaintenanceTask[] => {
+      const flatpakTasks: MaintenanceTask[] = [
+        { label: 'Repair Flatpak installation', command: 'flatpak', args: ['repair'], sudo: true, optional: true },
+        { label: 'Update Flatpak applications', command: 'flatpak', args: ['update', '-y'], sudo: true, optional: true },
+        { label: 'Remove unused Flatpak runtimes and apps', command: 'flatpak', args: ['uninstall', '--unused', '-y'], sudo: true, optional: true },
+      ];
+
+      if (detectedDistro === 'debian') {
+        return [
+          { label: 'Update package database', command: 'apt-get', args: ['update'], sudo: true },
+          { label: 'Full system upgrade', command: 'apt-get', args: ['full-upgrade', '-y'], sudo: true },
+          { label: 'Remove orphaned packages', command: 'apt-get', args: ['autoremove', '-y'], sudo: true },
+          { label: 'Clean APT cache', command: 'apt-get', args: ['autoclean'], sudo: true },
+          ...flatpakTasks,
+        ];
+      }
+
+      if (detectedDistro === 'arch') {
+        return [
+          { label: 'Synchronize and upgrade packages', command: 'pacman', args: ['-Syu', '--noconfirm'], sudo: true },
+          { label: 'Clean pacman cache', command: 'pacman', args: ['-Sc', '--noconfirm'], sudo: true },
+          ...flatpakTasks,
+        ];
+      }
+
+      if (detectedDistro === 'fedora') {
+        return [
+          { label: 'Upgrade packages', command: 'dnf', args: ['upgrade', '-y'], sudo: true },
+          { label: 'Remove unused packages', command: 'dnf', args: ['autoremove', '-y'], sudo: true },
+          { label: 'Clean DNF cache', command: 'dnf', args: ['clean', 'all'], sudo: true },
+          ...flatpakTasks,
+        ];
+      }
+
+      return [];
+    };
+
     try {
-      const distro = kernelInfo.distro.toLowerCase();
-
       if (cmd === 'full') {
-        let cmds: string[] = [];
-
-        if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
-          cmds = [
-            'apt-get update',
-            'apt-get full-upgrade -y',
-            'apt-get autoremove -y',
-            'apt-get autoclean',
-            'flatpak repair',
-            'flatpak update -y',
-            'flatpak uninstall --unused -y'
-          ];
-        } else if (distro.includes('arch') || distro.includes('manjaro')) {
-          cmds = [
-            'pacman -Sy',
-            'pacman -Syu --noconfirm',
-            'pacman -Sc --noconfirm',
-            'flatpak repair',
-            'flatpak update -y',
-            'flatpak uninstall --unused -y'
-          ];
-        } else if (distro.includes('fedora') || distro.includes('redhat')) {
-          cmds = [
-            'dnf upgrade -y',
-            'dnf autoremove -y',
-            'dnf clean all',
-            'flatpak repair',
-            'flatpak update -y',
-            'flatpak uninstall --unused -y'
-          ];
-        } else {
-          cmds = [cmd];
-        }
-
-        setMaintenanceOutput((prev: string) => prev + `
-> Running maintenance sequence...
-`);
         addAlert('info', 'Full maintenance started');
 
-        // Full maintenance is elevated by the backend through pkexec when needed.
-        // Do not prefix commands with literal sudo here; that can cause double prompts or no-TTY errors.
-        const needsSudo = cmds.some(c => !c.startsWith('flatpak'));
+        const detectedDistro = await detectMaintenanceDistro();
+        const tasks = buildFullMaintenanceTasks(detectedDistro);
 
-        if (isNative) {
-          const results: any[] = await invoke('execute_multiple_commands', { commands: cmds, sudo: needsSudo });
+        if (tasks.length === 0) {
+          completedWithErrors = true;
+          appendOutput('\n[ERROR] Unsupported or undetected Linux distribution. Full Maintenance was not executed.\n');
+          return;
+        }
 
-          if (!Array.isArray(results) || results.length === 0) {
-            completedWithErrors = true;
-            setMaintenanceOutput((prev: string) => prev + `
-[WARNING] Maintenance returned no command results.
-`);
-          } else {
-            for (const res of results) {
-              const output = res?.output || '';
-              const error = res?.error || '';
-              const success = res?.success !== false;
+        appendOutput(`Detected maintenance profile: ${detectedDistro}\n`);
+        appendOutput('> Running maintenance sequence...\n');
 
-              if (!success) completedWithErrors = true;
+        const flatpakAvailable = await commandExists('flatpak');
 
-              setMaintenanceOutput(
-                (prev: string) =>
-                  prev +
-                  (success ? `
-[OK]
-` : `
-[ERROR]
-`) +
-                  output +
-                  error
-              );
-            }
+        for (let i = 0; i < tasks.length; i++) {
+          const task = tasks[i];
+          const visibleCommand = `${task.sudo ? 'sudo ' : ''}${task.command} ${task.args.join(' ')}`.trim();
+
+          if (task.command === 'flatpak' && !flatpakAvailable) {
+            appendOutput(`\n[${i + 1}/${tasks.length}] ${task.label}\n[SKIPPED] flatpak is not installed on this system.\n`);
+            setMaintenanceProgress(Math.round(((i + 1) / tasks.length) * 100));
+            continue;
           }
-        } else {
-          addAlert('warning', 'Simulation mode: Maintenance sequence simulated.');
-          setMaintenanceOutput((prev: string) => prev + `Simulation mode: no system changes were applied.
-`);
+
+          appendOutput(`\n[${i + 1}/${tasks.length}] ${task.label}\n$ ${visibleCommand}\n`);
+
+          const result: any = await runCommand(task.command, task.args, task.sudo);
+          const output = [result?.output, result?.error].filter(Boolean).join('\n').trim();
+
+          if (output) {
+            appendOutput(output.endsWith('\n') ? output : output + '\n');
+          } else {
+            appendOutput('OK\n');
+          }
+
+          if (!result?.success) {
+            completedWithErrors = true;
+            appendOutput('[WARNING] This maintenance step finished with errors. Continuing with the next step.\n');
+          }
+
+          setMaintenanceProgress(Math.round(((i + 1) / tasks.length) * 100));
         }
       } else {
-        const parts = cmd.split(' ');
-        const needsSudo = !cmd.startsWith('flatpak');
-        const res = await runCommand(parts[0], parts.slice(1), needsSudo);
+        const parts = cmd.trim().split(/\s+/).filter(Boolean);
+        if (parts.length === 0) {
+          completedWithErrors = true;
+          appendOutput('\n[ERROR] Empty maintenance command.\n');
+          return;
+        }
 
-        if (!res?.success) completedWithErrors = true;
+        const command = parts[0];
+        const args = parts.slice(1);
+        const sudo = command !== 'flatpak';
+        const visibleCommand = `${sudo ? 'sudo ' : ''}${command} ${args.join(' ')}`.trim();
 
-        setMaintenanceOutput((prev: string) => prev + (res?.output || '') + (res?.error || ''));
+        appendOutput(`\n$ ${visibleCommand}\n`);
+        const result: any = await runCommand(command, args, sudo);
+        const output = [result?.output, result?.error].filter(Boolean).join('\n').trim();
+
+        if (output) {
+          appendOutput(output.endsWith('\n') ? output : output + '\n');
+        } else {
+          appendOutput('OK\n');
+        }
+
+        completedWithErrors = !result?.success;
       }
     } catch (err) {
       completedWithErrors = true;
-      const message = err instanceof Error ? err.message : String(err);
-      setMaintenanceOutput((prev: string) => prev + `
-[ERROR] ${message}
-`);
+      appendOutput(`\n[ERROR] ${String(err)}\n`);
     } finally {
       const finalMessage = completedWithErrors
         ? 'Maintenance finished with errors. Check console output.'
         : 'Maintenance completed successfully.';
 
-      setMaintenanceOutput((prev: string) => prev + `
----
-${finalMessage}
-`);
+      appendOutput(`\n---\n${finalMessage}\n`);
       setMaintenanceProgress(100);
       setIsMaintenanceRunning(false);
       addAlert(completedWithErrors ? 'warning' : 'success', finalMessage);
