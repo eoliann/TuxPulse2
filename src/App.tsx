@@ -1,5 +1,6 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { APPS_CATALOG } from './constants/apps';
+import { APP_VERSION } from './version';
 // @ts-ignore
 import { invoke } from '@tauri-apps/api/core';
 import { 
@@ -54,6 +55,32 @@ import {
 } from 'recharts';
 import { cn } from './lib/utils';
 
+
+// TuxPulse update check helpers - v6.0.7
+const TUXPULSE_LATEST_RELEASE_API = 'https://api.github.com/repos/eoliann/TuxPulse2/releases/latest';
+const TUXPULSE_RELEASES_URL = 'https://github.com/eoliann/TuxPulse2/releases';
+
+type UpdateCheckStatus = 'idle' | 'checking' | 'available' | 'current' | 'error';
+
+function normalizeVersionTag(value: string): string {
+  return value.trim().replace(/^v/i, '').split('+')[0];
+}
+
+function compareVersionTags(left: string, right: string): number {
+  const leftParts = normalizeVersionTag(left).split('-')[0].split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = normalizeVersionTag(right).split('-')[0].split('.').map((part) => Number.parseInt(part, 10) || 0);
+
+  for (let i = 0; i < Math.max(leftParts.length, rightParts.length, 3); i += 1) {
+    const diff = (leftParts[i] ?? 0) - (rightParts[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+
+  return 0;
+}
+
+function isNewerVersion(latest: string, current: string): boolean {
+  return compareVersionTags(latest, current) > 0;
+}
 // Mock Data Generator
 const generateData = () => {
   return Array.from({ length: 20 }, (_, i) => ({
@@ -155,12 +182,71 @@ const parseDisks = (output: string) => {
 };
 
 export default function App() {
-  const APP_VERSION = 'v6.0.6';
   const [data, setData] = useState(generateData());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [alerts, setAlerts] = useState<any[]>([]);
-  const [latestVersion, setLatestVersion] = useState('v6.0');
+  const [latestVersion, setLatestVersion] = useState(APP_VERSION);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [latestReleaseUrl, setLatestReleaseUrl] = useState(TUXPULSE_RELEASES_URL);
+  const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<UpdateCheckStatus>('idle');
+  const [updateCheckError, setUpdateCheckError] = useState('');
+
+  const checkForUpdates = async (showResult = false) => {
+    setIsCheckingForUpdates(true);
+    setUpdateCheckStatus('checking');
+    setUpdateCheckError('');
+
+    try {
+      const response = await fetch(TUXPULSE_LATEST_RELEASE_API, {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+
+      if (!response.ok) {
+        throw new Error(`GitHub API responded with HTTP ${response.status}`);
+      }
+
+      const data = await response.json() as { tag_name?: string; html_url?: string };
+      const releaseVersion = data.tag_name?.trim();
+
+      if (!releaseVersion) {
+        throw new Error('Latest release tag is missing from the GitHub response');
+      }
+
+      const releaseUrl = data.html_url || TUXPULSE_RELEASES_URL;
+      const hasUpdate = isNewerVersion(releaseVersion, APP_VERSION);
+
+      setLatestVersion(releaseVersion);
+      setLatestReleaseUrl(releaseUrl);
+      setUpdateAvailable(hasUpdate);
+      setUpdateCheckStatus(hasUpdate ? 'available' : 'current');
+
+      if (showResult) {
+        addAlert(
+          hasUpdate ? 'warning' : 'success',
+          hasUpdate
+            ? `Update available: ${releaseVersion}`
+            : `TuxPulse is up to date (${APP_VERSION})`,
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setUpdateCheckStatus('error');
+      setUpdateCheckError(message);
+
+      if (showResult) {
+        addAlert('error', `Could not check for updates: ${message}`);
+      }
+    } finally {
+      setIsCheckingForUpdates(false);
+    }
+  };
+
+  useEffect(() => {
+    void checkForUpdates(false);
+    // This check must run once on startup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [distroType, setDistroType] = useState<'debian' | 'arch' | 'fedora' | 'unknown'>('unknown');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -346,24 +432,6 @@ export default function App() {
     return false;
   };
 
-  // Version check
-  useEffect(() => {
-    const checkVersion = async () => {
-      try {
-        const response = await fetch('https://api.github.com/repos/eoliann/TuxPulse2/releases/latest');
-        const data = await response.json();
-        if (data.tag_name) {
-          setLatestVersion(data.tag_name);
-          if (isNewerVersion(data.tag_name, APP_VERSION)) {
-            setUpdateAvailable(true);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to check version:', err);
-      }
-    };
-    checkVersion();
-  }, []);
 
   // Calculate catalog stats
   const catalogStats = React.useMemo(() => {
@@ -442,61 +510,121 @@ export default function App() {
 
   const runMaintenance = async (cmd: string) => {
     setIsMaintenanceRunning(true);
-    setMaintenanceOutput(`Starting: ${cmd}\n`);
-    const distro = kernelInfo.distro.toLowerCase();
-    
-    if (cmd === 'full') {
-      let cmds: string[] = [];
-      if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
-        cmds = [
-          'apt-get update',
-          'apt-get full-upgrade -y',
-          'apt-get autoremove -y',
-          'apt-get autoclean',
-          'flatpak update -y'
-        ];
-      } else if (distro.includes('arch') || distro.includes('manjaro')) {
-        cmds = [
-          'pacman -Sy',
-          'pacman -Syu --noconfirm',
-          'pacman -Sc --noconfirm',
-          'flatpak update -y'
-        ];
-      } else if (distro.includes('fedora') || distro.includes('redhat')) {
-        cmds = [
-          'dnf upgrade -y',
-          'dnf autoremove -y',
-          'dnf clean all',
-          'flatpak update -y'
-        ];
-      } else {
-        cmds = [cmd]; // Fallback
-      }
+    setMaintenanceProgress(0);
+    setMaintenanceOutput(`Starting: ${cmd}
+`);
 
-      setMaintenanceOutput((prev: string) => prev + `\n> Running maintenance sequence...\n`);
-      const needsSudo = cmds.some(c => !c.startsWith('flatpak'));
-      
-      if (isNative) {
-        try {
+    let completedWithErrors = false;
+
+    try {
+      const distro = kernelInfo.distro.toLowerCase();
+
+      if (cmd === 'full') {
+        let cmds: string[] = [];
+
+        if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
+          cmds = [
+            'apt-get update',
+            'apt-get full-upgrade -y',
+            'apt-get autoremove -y',
+            'apt-get autoclean',
+            'flatpak repair',
+            'flatpak update -y',
+            'flatpak uninstall --unused -y'
+          ];
+        } else if (distro.includes('arch') || distro.includes('manjaro')) {
+          cmds = [
+            'pacman -Sy',
+            'pacman -Syu --noconfirm',
+            'pacman -Sc --noconfirm',
+            'flatpak repair',
+            'flatpak update -y',
+            'flatpak uninstall --unused -y'
+          ];
+        } else if (distro.includes('fedora') || distro.includes('redhat')) {
+          cmds = [
+            'dnf upgrade -y',
+            'dnf autoremove -y',
+            'dnf clean all',
+            'flatpak repair',
+            'flatpak update -y',
+            'flatpak uninstall --unused -y'
+          ];
+        } else {
+          cmds = [cmd];
+        }
+
+        setMaintenanceOutput((prev: string) => prev + `
+> Running maintenance sequence...
+`);
+        addAlert('info', 'Full maintenance started');
+
+        // Full maintenance is elevated by the backend through pkexec when needed.
+        // Do not prefix commands with literal sudo here; that can cause double prompts or no-TTY errors.
+        const needsSudo = cmds.some(c => !c.startsWith('flatpak'));
+
+        if (isNative) {
           const results: any[] = await invoke('execute_multiple_commands', { commands: cmds, sudo: needsSudo });
-          for (const res of results) {
-            setMaintenanceOutput((prev: string) => prev + res.output + (res.error || ''));
+
+          if (!Array.isArray(results) || results.length === 0) {
+            completedWithErrors = true;
+            setMaintenanceOutput((prev: string) => prev + `
+[WARNING] Maintenance returned no command results.
+`);
+          } else {
+            for (const res of results) {
+              const output = res?.output || '';
+              const error = res?.error || '';
+              const success = res?.success !== false;
+
+              if (!success) completedWithErrors = true;
+
+              setMaintenanceOutput(
+                (prev: string) =>
+                  prev +
+                  (success ? `
+[OK]
+` : `
+[ERROR]
+`) +
+                  output +
+                  error
+              );
+            }
           }
-        } catch (err) {
-          addAlert('error', `Maintenance failed: ${err}`);
+        } else {
+          addAlert('warning', 'Simulation mode: Maintenance sequence simulated.');
+          setMaintenanceOutput((prev: string) => prev + `Simulation mode: no system changes were applied.
+`);
         }
       } else {
-        addAlert('warning', "Simulation mode: Maintenance sequence simulated.");
+        const parts = cmd.split(' ');
+        const needsSudo = !cmd.startsWith('flatpak');
+        const res = await runCommand(parts[0], parts.slice(1), needsSudo);
+
+        if (!res?.success) completedWithErrors = true;
+
+        setMaintenanceOutput((prev: string) => prev + (res?.output || '') + (res?.error || ''));
       }
-    } else {
-      const parts = cmd.split(' ');
-      const needsSudo = !cmd.startsWith('flatpak');
-      const res = await runCommand(parts[0], parts.slice(1), needsSudo);
-      setMaintenanceOutput((prev: string) => prev + res.output + (res.error || ''));
+    } catch (err) {
+      completedWithErrors = true;
+      const message = err instanceof Error ? err.message : String(err);
+      setMaintenanceOutput((prev: string) => prev + `
+[ERROR] ${message}
+`);
+    } finally {
+      const finalMessage = completedWithErrors
+        ? 'Maintenance finished with errors. Check console output.'
+        : 'Maintenance completed successfully.';
+
+      setMaintenanceOutput((prev: string) => prev + `
+---
+${finalMessage}
+`);
+      setMaintenanceProgress(100);
+      setIsMaintenanceRunning(false);
+      addAlert(completedWithErrors ? 'warning' : 'success', finalMessage);
     }
-    
-    setIsMaintenanceRunning(false);
-    addAlert('info', 'Maintenance task completed');
   };
 
   const fixSpotifyGPG = async () => {
@@ -890,7 +1018,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => openExternal('https://github.com/eoliann/TuxPulse2/releases')}
+              onClick={() => openExternal(latestReleaseUrl || TUXPULSE_RELEASES_URL)}
               className="text-[10px] font-bold uppercase border border-white/30 px-3 py-1 hover:bg-white hover:text-blue-600 transition-all"
             >
               View Release
@@ -909,7 +1037,9 @@ export default function App() {
         isSidebarOpen ? "w-64" : "w-20"
       )}>
         <div className="p-6 flex-shrink-0 flex items-center gap-3 border-b border-[#E4E3E0]/10">
-          <div className="w-8 h-8 bg-blue-600 flex-shrink-0 flex items-center justify-center text-white font-bold text-xl">T</div>
+          <div className="w-8 h-8 bg-blue-600 flex-shrink-0 flex items-center justify-center text-white">
+          <Activity className="w-5 h-5 animate-pulse" />
+        </div>
           {isSidebarOpen && (
             <div className="truncate">
               <h1 className="text-lg font-bold tracking-tighter uppercase truncate">TuxPulse</h1>
@@ -1013,23 +1143,7 @@ export default function App() {
               )}
             >
               {theme === 'light' ? <Eye className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
-            </button>
-            <button 
-              onClick={() => addAlert('info', 'Manual system scan initiated')}
-              className={cn(
-                "p-2 border transition-all",
-                theme === 'light' ? "border-[#141414] hover:bg-[#141414] hover:text-[#E4E3E0]" : "border-[#E4E3E0]/20 hover:bg-[#E4E3E0] hover:text-[#141414]"
-              )}
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-            <div className={cn(
-              "w-10 h-10 rounded-full border flex items-center justify-center font-bold",
-              theme === 'light' ? "border-[#141414]" : "border-[#E4E3E0]/20"
-            )}>
-              TX
-            </div>
-          </div>
+            </button>          </div>
         </header>
 
         <div className="p-8">
@@ -1875,7 +1989,7 @@ export default function App() {
                     Current: {APP_VERSION} | Latest: {latestVersion}
                     {updateAvailable && (
                       <button 
-                        onClick={() => openExternal('https://github.com/eoliann/TuxPulse2/releases')}
+                        onClick={() => openExternal(latestReleaseUrl || TUXPULSE_RELEASES_URL)}
                         className="ml-4 px-3 py-1 bg-blue-600 text-white text-[10px] rounded-full hover:bg-blue-700 transition-all animate-pulse"
                       >
                         Update Available
@@ -2225,6 +2339,54 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
                   </div>
                 </div>
                 <div className="space-y-4">
+
+          <div className={cn(
+            "p-6 border mb-6",
+            theme === 'light' ? "bg-white border-[#141414]" : "bg-[#141414]/50 border-[#E4E3E0]/10"
+          )}>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-[0.22em] mb-3">Version & Updates</h3>
+                <div className="space-y-2 text-xs font-mono">
+                  <p><span className="opacity-50 uppercase tracking-widest">Current:</span> {APP_VERSION}</p>
+                  <p><span className="opacity-50 uppercase tracking-widest">Latest:</span> {latestVersion}</p>
+                  <p>
+                    <span className="opacity-50 uppercase tracking-widest">Status:</span>{' '}
+                    {updateCheckStatus === 'checking' && 'Checking for updates...'}
+                    {updateCheckStatus === 'available' && 'Update available'}
+                    {updateCheckStatus === 'current' && 'Up to date'}
+                    {updateCheckStatus === 'error' && 'Update check failed'}
+                    {updateCheckStatus === 'idle' && 'Not checked yet'}
+                  </p>
+                  {updateCheckError && (
+                    <p className="text-red-500">{updateCheckError}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => checkForUpdates(true)}
+                  disabled={isCheckingForUpdates}
+                  className={cn(
+                    "px-4 py-2 text-[10px] font-bold uppercase tracking-widest border transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                    theme === 'light' ? "border-[#141414] hover:bg-[#141414] hover:text-[#E4E3E0]" : "border-[#E4E3E0]/20 hover:bg-[#E4E3E0] hover:text-[#141414]"
+                  )}
+                >
+                  {isCheckingForUpdates ? 'Checking...' : 'Check for updates'}
+                </button>
+
+                {updateAvailable && (
+                  <button
+                    onClick={() => openExternal(latestReleaseUrl || TUXPULSE_RELEASES_URL)}
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-blue-600 text-white hover:bg-blue-700 transition-all"
+                  >
+                    View Release
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
                   <h3 className="text-xl font-bold uppercase tracking-tight border-b border-current pb-2">Hardening Guide</h3>
                   <div className="p-4 bg-blue-600/5 border border-blue-600/20">
                     <p className="text-xs leading-relaxed opacity-80">

@@ -1,0 +1,69 @@
+name: Build Arch Package
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  arch-package:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Update package database
+        run: pacman -Syu --noconfirm
+
+      - name: Install build dependencies
+        run: >
+          pacman -S --noconfirm
+          base-devel
+          git
+          nodejs
+          npm
+          rustup
+          webkit2gtk-4.1
+          gtk3
+          libayatana-appindicator
+          librsvg
+
+      - name: Configure Rust
+        run: rustup default stable
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build TuxPulse binary
+        run: cargo build --manifest-path src-tauri/Cargo.toml --release
+
+      - name: Prepare non-root package builder
+        run: |
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Build native Arch package
+        run: su builder -c "cd '$GITHUB_WORKSPACE' && bash scripts/build_arch_package.sh"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tuxpulse-arch-package
+          path: release/packages/arch/*.pkg.tar.zst
+
+      - name: Attach package to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/packages/arch/*.pkg.tar.zst
+          overwrite_files: true

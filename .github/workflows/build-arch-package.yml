@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   arch-package:
     runs-on: ubuntu-latest
@@ -16,27 +19,30 @@ jobs:
       image: archlinux:latest
 
     steps:
-      - name: Update package database
-        run: pacman -Syu --noconfirm
-
-      - name: Install build dependencies
-        run: >
-          pacman -S --noconfirm
-          base-devel
-          git
-          nodejs
-          npm
-          rustup
-          webkit2gtk-4.1
-          gtk3
-          libayatana-appindicator
-          librsvg
+      - name: Install system dependencies
+        run: |
+          pacman -Syu --noconfirm --needed
+          pacman -S --noconfirm --needed \
+            base-devel \
+            git \
+            nodejs \
+            npm \
+            rustup \
+            webkit2gtk-4.1 \
+            gtk3 \
+            libayatana-appindicator \
+            librsvg \
+            openssl \
+            pkgconf \
+            curl \
+            wget \
+            file
 
       - name: Configure Rust
         run: rustup default stable
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Node dependencies
         run: npm ci
@@ -55,15 +61,19 @@ jobs:
       - name: Build native Arch package
         run: su builder -c "cd '$GITHUB_WORKSPACE' && bash scripts/build_arch_package.sh"
 
+      - name: Show generated package
+        run: ls -lah release/packages/arch/
+
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tuxpulse-arch-package
           path: release/packages/arch/*.pkg.tar.zst
+          if-no-files-found: error
 
       - name: Attach package to GitHub Release
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: release/packages/arch/*.pkg.tar.zst
           overwrite_files: true
