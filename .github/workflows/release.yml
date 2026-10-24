@@ -2,7 +2,9 @@ name: Validate and release Linux packages
 
 on:
   push:
-    branches: [main, 'codex/**']
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -93,3 +95,4 @@ jobs:
           find packages -type f -exec sha256sum {} + > SHA256SUMS
           mapfile -t assets < <(find packages -type f)
           gh release create "$tag" "${assets[@]}" SHA256SUMS --target "$GITHUB_SHA" --title "TuxPulse $tag" --notes-file RELEASE_NOTES.md --latest
+
