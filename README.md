@@ -23,7 +23,7 @@
 
 - **Real-time Dashboard**: Monitor CPU, RAM, Disk, and Network usage with high-precision charts.
 - **Smart Battery Detection**: Automatically detects if you are on a laptop or desktop and adjusts the UI accordingly.
-- **Kernel Management**: Update your kernel and safely remove old, unused kernel versions to free up space.
+- **Kernel Management**: Update supported installed kernel flavors. On Debian/Ubuntu, preview removal of old kernels while preserving the running and newest backup kernels.
 - **One-Click Maintenance**: Run system updates, clean package caches, and optimize your OS with a single sudo prompt.
 - **Software Center**: Browse and install popular Linux applications across different distributions (Debian, Arch, Fedora).
 - **Security Audit**: Scan for common security vulnerabilities like open ports or world-writable configurations.
@@ -93,3 +93,7 @@ TuxPulse is a powerful system tool that performs operations requiring root privi
 3. Strongly recommend backing up important data before performing system-level maintenance or kernel updates.
 
 By using this software, you acknowledge that you understand these risks and take full responsibility for any consequences.
+
+## Security update 6.0.9
+
+See [release notes](RELEASE_NOTES.md) for the operation boundaries, supported kernel systems, DNS detection, and migration from the retired developer daemon. Automatic native package removal and autoremove are delegated to distribution tools for transaction review.

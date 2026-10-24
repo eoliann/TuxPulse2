@@ -1,6 +1,6 @@
 {
   "productName": "TuxPulse",
-  "version": "6.0.8",
+  "version": "6.0.9",
   "identifier": "com.eoliann.tuxpulse",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost https://api.github.com; object-src 'none'; base-uri 'self'; frame-src 'none'; form-action 'none'"
     }
   },
   "bundle": {

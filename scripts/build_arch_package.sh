@@ -23,17 +23,12 @@ fi
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR/package/usr/bin"
 mkdir -p "$WORK_DIR/package/usr/share/applications"
-mkdir -p "$WORK_DIR/package/usr/share/polkit-1/actions"
 mkdir -p "$WORK_DIR/package/usr/share/icons/hicolor/128x128/apps"
 
 install -Dm755 "$BINARY_PATH" "$WORK_DIR/package/usr/bin/tuxpulse"
 
 if [ -f "system_files/tuxpulse.desktop" ]; then
   install -Dm644 "system_files/tuxpulse.desktop" "$WORK_DIR/package/usr/share/applications/tuxpulse.desktop"
-fi
-
-if [ -f "system_files/com.eoliann.tuxpulse.policy" ]; then
-  install -Dm644 "system_files/com.eoliann.tuxpulse.policy" "$WORK_DIR/package/usr/share/polkit-1/actions/com.eoliann.tuxpulse.policy"
 fi
 
 if [ -f "src-tauri/icons/128x128.png" ]; then

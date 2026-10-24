@@ -1,0 +1,94 @@
+name: Validate and release Linux packages
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          rustup update stable
+          rustup default stable
+      - run: npm ci
+      - run: npm run version:check && npm run lint && npm test
+      - name: Validate shell scripts
+        run: bash -n build_all.sh build_deb.sh scripts/build_arch_package.sh
+      - name: Rust regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --release --locked
+      - name: Build Debian and RPM packages
+        run: npm run tauri build -- --bundles deb,rpm
+      - name: Inspect package contents
+        run: |
+          for package in src-tauri/target/release/bundle/deb/*.deb; do
+            dpkg-deb --contents "$package" > /tmp/package-contents.txt
+            if grep -E 'tuxpulse.helper|com.eoliann.tuxpulse.policy' /tmp/package-contents.txt; then exit 1; fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+          if-no-files-found: error
+
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: pacman -Syu --noconfirm --needed base-devel git nodejs npm rust webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg openssl pkgconf file
+      - uses: actions/checkout@v5
+      - run: npm ci && npm run build
+      - run: cargo build --manifest-path src-tauri/Cargo.toml --release --locked
+      - name: Build Arch package without root
+        run: |
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          su builder -c "cd '$GITHUB_WORKSPACE' && bash scripts/build_arch_package.sh"
+          for package in release/packages/arch/*.pkg.tar.zst; do
+            if tar -tf "$package" | grep -E 'tuxpulse.helper|com.eoliann.tuxpulse.policy'; then exit 1; fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-package
+          path: release/packages/arch/*.pkg.tar.zst
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, arch]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+      - name: Publish release after all builds and tests pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; no changes made."
+            exit 0
+          fi
+          find packages -type f -exec sha256sum {} + > SHA256SUMS
+          mapfile -t assets < <(find packages -type f)
+          gh release create "$tag" "${assets[@]}" SHA256SUMS --target "$GITHUB_SHA" --title "TuxPulse $tag" --notes-file RELEASE_NOTES.md --latest
