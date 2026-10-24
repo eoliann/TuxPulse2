@@ -42,15 +42,14 @@ This command will:
 3. Build: `makepkg -si`
 
 ### D. Flatpak
-1. Create a manifest file `com.eoliann.TuxPulse.json`.
-2. Note: Flatpak apps are sandboxed. The helper must run outside the sandbox or use a portal.
-3. Use `flatpak-builder --user --install --force-clean build-dir com.eoliann.TuxPulse.json`
+The manifest is experimental. Host system maintenance is not supported inside the Flatpak sandbox.
 
-## 4. Integration with VS Code
-To test locally in VS Code:
-1. **Frontend**: Use the built-in terminal to run `npm run dev`.
-2. **Helper**: Run `sudo python3 system_files/tuxpulse_helper_secure.py` in a separate terminal.
-3. **Debugging**: Use the "Debugger for Chrome" extension to debug the React code.
+## Development and system integration
 
-## 5. Deployment Script
-We've included a `deploy_local.sh` script to quickly install the helper and policy on your Mint machine for testing.
+Run `npm ci` and `npm run tauri dev`. The Rust backend authenticates individual validated operations through the distribution's existing pkexec integration. No background root daemon, custom polkit action or deployment script is required.
+
+See [release notes](RELEASE_NOTES.md) for supported kernel operations and cleanup instructions for a previously deployed developer helper.
+
+## Release verification
+
+GitHub Actions runs frontend and Rust regression tests, builds Debian/RPM and native Arch packages, then publishes the version from package.json only after both Linux builds pass. SHA256SUMS accompanies the packages. Branch builds never publish a release.

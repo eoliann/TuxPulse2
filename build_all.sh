@@ -27,7 +27,6 @@ BUILD_DIR="dist/arch_build"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/usr/bin"
 mkdir -p "$BUILD_DIR/usr/share/applications"
-mkdir -p "$BUILD_DIR/usr/share/polkit-1/actions"
 mkdir -p "$BUILD_DIR/usr/share/icons/hicolor/512x512/apps"
 
 # Copy binary
@@ -35,7 +34,6 @@ cp src-tauri/target/release/tuxpulse "$BUILD_DIR/usr/bin/"
 
 # Copy system files
 [ -f "system_files/tuxpulse.desktop" ] && cp system_files/tuxpulse.desktop "$BUILD_DIR/usr/share/applications/"
-[ -f "system_files/com.eoliann.tuxpulse.policy" ] && cp system_files/com.eoliann.tuxpulse.policy "$BUILD_DIR/usr/share/polkit-1/actions/"
 [ -f "src-tauri/icons/128x128.png" ] && cp src-tauri/icons/128x128.png "$BUILD_DIR/usr/share/icons/hicolor/512x512/apps/tuxpulse.png"
 
 # Create .PKGINFO (Strict Arch format: no spaces around =, pkgver includes pkgrel)

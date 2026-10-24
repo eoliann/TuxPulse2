@@ -1,17 +1,19 @@
+import { nativeOperation } from './nativeOperations';
+import { DNS_PROVIDERS, detectDNS } from './dns';
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { APPS_CATALOG } from './constants/apps';
 import { APP_VERSION } from './version';
 // @ts-ignore
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { 
-  Activity, 
-  Shield, 
-  Bell, 
-  Settings, 
-  Cpu, 
-  Database, 
-  HardDrive, 
+import {
+  Activity,
+  Shield,
+  Bell,
+  Settings,
+  Cpu,
+  Database,
+  HardDrive,
   Terminal,
   AlertTriangle,
   CheckCircle2,
@@ -41,13 +43,13 @@ import {
   Clock,
   Globe
 } from 'lucide-react';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   AreaChart,
   Area,
@@ -105,7 +107,6 @@ const MOCK_PROCESSES = [
 ];
 
 const MOCK_SERVICES = [
-  { name: 'tuxpulse-helper', status: 'running', desc: 'Secure Helper Daemon' },
   { name: 'docker', status: 'running', desc: 'Docker Container Engine' },
   { name: 'nginx', status: 'running', desc: 'High performance web server' },
   { name: 'ssh', status: 'running', desc: 'OpenBSD Secure Shell server' },
@@ -131,7 +132,6 @@ const MOCK_PACKAGES = [
 const MOCK_STARTUP = [
   { name: 'bluetooth.service', status: 'enabled', type: 'system' },
   { name: 'network-manager.service', status: 'enabled', type: 'system' },
-  { name: 'tuxpulse-helper.service', status: 'enabled', type: 'system' },
   { name: 'docker.service', status: 'enabled', type: 'system' },
   { name: 'cups.service', status: 'enabled', type: 'system' },
 ];
@@ -257,7 +257,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [isNative, setIsNative] = useState(false);
-  
+
   // Real System State
   const [processes, setProcesses] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
@@ -289,14 +289,9 @@ export default function App() {
   const [showLicense, setShowLicense] = useState(false);
   const [oldKernels, setOldKernels] = useState<any[]>([]);
   const [isKernelUpdating, setIsKernelUpdating] = useState(false);
-  const [cleanerOptions, setCleanerOptions] = useState({
-    tempFiles: true,
-    trash: true,
-    userCache: true,
-    journal: true,
-    orphans: true,
-    thumbnails: true
-  });
+  const [kernelRemovalPlan, setKernelRemovalPlan] = useState<{ name: string; output: string } | null>(null);
+  const [isKernelRemoving, setIsKernelRemoving] = useState(false);
+  const [cleanerOptions, setCleanerOptions] = useState({ journal: true, packageCache: true });
   const [alertThresholds, setAlertThresholds] = useState({
     cpu: 80,
     ram: 90,
@@ -305,67 +300,30 @@ export default function App() {
     network: 10
   });
 
-  const DNS_PROVIDERS = [
-    { name: 'System Default', id: 'default', primary: '', secondary: '' },
-    { name: 'Cloudflare', id: 'cloudflare', primary: '1.1.1.1', secondary: '1.0.0.1' },
-    { name: 'Google', id: 'google', primary: '8.8.8.8', secondary: '8.8.4.4' },
-    { name: 'OpenDNS', id: 'opendns', primary: '208.67.222.222', secondary: '208.67.220.220' },
-    { name: 'Quad9', id: 'quad9', primary: '9.9.9.9', secondary: '149.112.112.112' },
-    { name: 'AdGuard', id: 'adguard', primary: '94.140.14.14', secondary: '94.140.15.15' },
-  ];
+  const refreshDNS = async () => {
+    const res = await runCommand('nmcli', ['-t', '-f', 'GENERAL.DEVICE,IP4.DNS,IP6.DNS', 'device', 'show']);
+    setSelectedDNS(res.success ? detectDNS(res.output) : 'default');
+  };
 
   const setSystemDNS = async (providerId: string) => {
-    const provider = DNS_PROVIDERS.find(p => p.id === providerId);
-    if (!provider) return;
-
+    if (!isNative) { addAlert('warning', 'DNS configuration requires the desktop app.'); return; }
     setIsDNSSetting(true);
-    setSelectedDNS(providerId);
-    setMaintenanceOutput(prev => prev + `\nChanging DNS to ${provider.name}...\n`);
-    addAlert('info', `Configuring DNS: ${provider.name}`);
-
-    if (isNative) {
-      try {
-        const connRes = await runCommand('nmcli', ['-t', '-f', 'NAME,TYPE,STATE', 'con', 'show', '--active']);
-        const activeConnections = connRes.output.split('\n')
-          .filter((line: string) => line.trim() !== '' && (line.includes('ethernet') || line.includes('wireless')))
-          .map((line: string) => line.split(':')[0]);
-
-        if (activeConnections.length === 0) {
-          setMaintenanceOutput(prev => prev + "Error: No active network connections found to configure.\n");
-        } else {
-          for (const conn of activeConnections) {
-            setMaintenanceOutput(prev => prev + `Configuring connection: ${conn}...\n`);
-            if (providerId === 'default') {
-              await runCommand('nmcli', ['con', 'mod', conn, 'ipv4.dns', '', 'ipv4.ignore-auto-dns', 'no'], true);
-            } else {
-              const dnsStr = `${provider.primary} ${provider.secondary}`;
-              await runCommand('nmcli', ['con', 'mod', conn, 'ipv4.dns', dnsStr, 'ipv4.ignore-auto-dns', 'yes'], true);
-            }
-            await runCommand('nmcli', ['con', 'up', conn], true);
-          }
-          const successMsg = providerId === 'default' 
-            ? "DNS reset to system defaults across active connections.\n"
-            : `DNS successfully updated to ${provider.name} (${provider.primary} ${provider.secondary})\n`;
-          setMaintenanceOutput(prev => prev + successMsg);
-        }
-      } catch (err) {
-        setMaintenanceOutput(prev => prev + `Error setting DNS: ${err}\n`);
-        addAlert('error', 'DNS configuration failed');
-      }
-    } else {
-      addAlert('warning', `Simulated DNS change to ${provider.name}`);
-      setMaintenanceOutput(prev => prev + `Simulation: DNS changed to ${provider.name}\n`);
-    }
-
-    setIsDNSSetting(false);
+    try {
+      const res: any = await invoke('configure_dns', { provider: providerId });
+      if (!res.success) throw new Error(res.error || 'DNS configuration failed');
+      setMaintenanceOutput(prev => prev + res.output);
+      await refreshDNS();
+      addAlert('success', 'DNS configuration applied.');
+    } catch (err) { addAlert('error', String(err)); await refreshDNS(); }
+    finally { setIsDNSSetting(false); }
   };
 
   const runSecurityScan = async () => {
     setIsScanning(true);
     addAlert('info', 'Starting security audit...');
-    
+
     const results = [];
-    
+
     // Check for open ports (simulated/basic)
     const netstat = await runCommand('netstat', ['-tuln']);
     if (netstat.success) {
@@ -444,7 +402,7 @@ export default function App() {
         let nativePkg = app.packages.apt;
         if (distroType === 'arch') nativePkg = app.packages.pacman;
         else if (distroType === 'fedora') nativePkg = app.packages.dnf;
-        
+
         const isNativeInstalled = nativePkg && packages.some((p: any) => p.name === nativePkg);
         const isFlatpakInstalled = app.flatpak && flatpaks.includes(app.flatpak);
         if (isNativeInstalled || isFlatpakInstalled) installed++;
@@ -471,10 +429,10 @@ export default function App() {
           let args: string[] = [];
           if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
             cmd = 'apt-cache';
-            args = ['show', ...batch]; 
+            args = ['show', ...batch];
           } else if (distro.includes('arch') || distro.includes('manjaro')) {
             cmd = 'pacman';
-            args = ['-Si', ...batch]; 
+            args = ['-Si', ...batch];
           } else if (distro.includes('fedora') || distro.includes('redhat')) {
             cmd = 'dnf';
             args = ['info', ...batch];
@@ -491,7 +449,7 @@ export default function App() {
                   const outputLower = combinedOutput.toLowerCase();
                   const pLower = p.toLowerCase();
                   // More robust check for package presence in info/show output
-                  if (outputLower.includes(`package: ${pLower}`) || 
+                  if (outputLower.includes(`package: ${pLower}`) ||
                       outputLower.includes(`name : ${pLower}`) ||
                       outputLower.includes(`name: ${pLower}`) ||
                       (distro.includes('arch') && outputLower.includes(`repository     : `) && outputLower.includes(pLower))) {
@@ -535,27 +493,9 @@ export default function App() {
       return 'unknown';
     };
 
-    const commandExists = async (command: string): Promise<boolean> => {
-      if (!isNative) return true;
-      try {
-        const result: any = await invoke('execute_system_command', {
-          command: 'sh',
-          args: ['-c', `command -v ${command} >/dev/null 2>&1`],
-          sudo: false,
-        });
-        return result?.success === true;
-      } catch {
-        return false;
-      }
-    };
-
     const detectMaintenanceDistro = async (): Promise<SupportedDistro> => {
       const fromState = distroType !== 'unknown' ? distroType : normalizeDistro(kernelInfo.distro || '');
       if (fromState !== 'unknown') return fromState;
-
-      if (await commandExists('pacman')) return 'arch';
-      if (await commandExists('apt-get')) return 'debian';
-      if (await commandExists('dnf')) return 'fedora';
 
       return 'unknown';
     };
@@ -565,7 +505,7 @@ export default function App() {
         return [
           'sudo apt-get update',
           'sudo apt-get full-upgrade -y',
-          'sudo apt-get autoremove -y',
+          'Review orphaned packages manually (kernel protection)',
           'sudo apt-get autoclean -y',
           'sudo flatpak repair',
           'sudo flatpak update -y',
@@ -697,43 +637,38 @@ export default function App() {
 
 
   const fixSpotifyGPG = async () => {
-    setIsMaintenanceRunning(true);
-    setMaintenanceOutput("Fixing Spotify GPG Key...\n");
-    const res = await runCommand('sh', ['-c', 'curl -sS https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.gpg | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/spotify.gpg'], true);
-    setMaintenanceOutput((prev: string) => prev + res.output + (res.error || ''));
-    setIsMaintenanceRunning(false);
-    addAlert('success', 'Spotify GPG fix attempted');
+    addAlert('info', 'Automatic trust-key installation was removed. Follow Spotify instructions and verify the signing key before changing APT trust.');
+    await openExternal('https://www.spotify.com/download/linux/');
   };
 
   const runCleaner = async () => {
     setIsCleanerRunning(true);
     setCleanerOutput("Starting system cleanup...\n");
     addAlert('info', 'Starting system cleanup...');
-    
-    const distro = kernelInfo.distro.toLowerCase();
-    const tasks = [
-      { name: 'Trash', cmd: 'rm', args: ['-rf', '~/.local/share/Trash/*'], sudo: false },
-      { name: 'Temp Files', cmd: 'rm', args: ['-rf', '/tmp/*'], sudo: true },
-      { name: 'Journal Logs', cmd: 'journalctl', args: ['--vacuum-time=7d'], sudo: true },
-    ];
 
-    if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
+    const distro = kernelInfo.distro.toLowerCase();
+    const tasks = cleanerOptions.journal
+      ? [{ name: 'Journal Logs', cmd: 'journalctl', args: ['--vacuum-time=7d'], sudo: true }] : [];
+
+    if (cleanerOptions.packageCache && (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint'))) {
       tasks.push({ name: 'Apt Cache', cmd: 'apt-get', args: ['autoclean'], sudo: true });
-      tasks.push({ name: 'Orphaned Packages', cmd: 'apt-get', args: ['autoremove', '-y'], sudo: true });
-    } else if (distro.includes('arch') || distro.includes('manjaro')) {
+
+    } else if (cleanerOptions.packageCache && (distro.includes('arch') || distro.includes('manjaro'))) {
       tasks.push({ name: 'Pacman Cache', cmd: 'pacman', args: ['-Sc', '--noconfirm'], sudo: true });
-    } else if (distro.includes('fedora') || distro.includes('redhat')) {
+    } else if (cleanerOptions.packageCache && (distro.includes('fedora') || distro.includes('redhat'))) {
       tasks.push({ name: 'DNF Cache', cmd: 'dnf', args: ['clean', 'all'], sudo: true });
     }
 
+    let allSucceeded = true;
     for (const task of tasks) {
       setCleanerOutput((prev: string) => prev + `\n[${task.name}] Running: ${task.cmd} ${task.args.join(' ')}\n`);
       const res = await runCommand(task.cmd, task.args, task.sudo);
+      allSucceeded = allSucceeded && res.success;
       setCleanerOutput((prev: string) => prev + (res.output || 'Success\n') + (res.error || ''));
     }
 
     setIsCleanerRunning(false);
-    addAlert('success', 'Cleanup completed successfully');
+    addAlert(allSucceeded ? 'success' : 'error', allSucceeded ? 'Cleanup completed successfully' : 'Cleanup finished with errors. Check the output.');
   };
 
   const toggleStartup = async (name: string, enabled: boolean) => {
@@ -761,7 +696,7 @@ export default function App() {
       return { success: true, output: "Simulation mode: No native backend detected." };
     }
     try {
-      const result: any = await invoke('execute_system_command', { command, args, sudo });
+      const result: any = await invoke('execute_operation', nativeOperation(command, args));
       if (!result.success) {
         addAlert('error', `Command failed: ${result.error}`);
       }
@@ -771,6 +706,13 @@ export default function App() {
       return { success: false, error: String(err) };
     }
   };
+
+  useEffect(() => {
+    if (!isNative || isDNSSetting || !['maintenance', 'network'].includes(activeTab)) return;
+    void refreshDNS();
+    const interval = window.setInterval(() => void refreshDNS(), 15000);
+    return () => window.clearInterval(interval);
+  }, [isNative, activeTab, isDNSSetting]);
 
   // Data Fetching Logic
   useEffect(() => {
@@ -782,9 +724,9 @@ export default function App() {
         const uname = await runCommand('uname', ['-a']);
         const host = await runCommand('hostnamectl');
         const osRelease = await runCommand('cat', ['/etc/os-release']);
-        
+
         let distroName = 'Unknown Linux';
-        
+
         if (host.success) {
           const distroMatch = host.output.match(/Operating System: (.*)/);
           if (distroMatch) distroName = distroMatch[1];
@@ -842,32 +784,9 @@ export default function App() {
           }
         }
 
-        // Fetch old kernels
-        const distro = kernelInfo.distro.toLowerCase();
-        if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
-          const res = await runCommand('dpkg', ['--list', 'linux-image-*']);
-          if (res.success) {
-            const current = kernelInfo.release;
-            const lines = res.output.split('\n').slice(5);
-            const kernels = lines.map((line: string) => {
-              const parts = line.trim().split(/\s+/);
-              if (parts.length < 3) return null;
-              const name = parts[1];
-              const version = parts[2];
-              // Extract version from name if possible, or use version field
-              const kernelVersion = name.replace('linux-image-', '');
-              if (kernelVersion === current || !name.startsWith('linux-image-')) return null;
-              return { name, version, release: kernelVersion, status: parts[0] };
-            }).filter(Boolean);
-            setOldKernels(kernels as any[]);
-          }
-        } else if (distro.includes('arch')) {
-          const res = await runCommand('pacman', ['-Q', 'linux']);
-          // Arch usually only keeps current kernel unless multiple are installed (linux-lts, etc)
-          if (res.success) {
-            setOldKernels([]); // Arch handles this differently
-          }
-        }
+        const inventory: any = await invoke('kernel_inventory');
+        setOldKernels(inventory.kernels || []);
+        if (inventory.message) addAlert('info', inventory.message);
       } else if (activeTab === 'hardware') {
         const cpu = await runCommand('lscpu');
         const usb = await runCommand('lsusb');
@@ -878,6 +797,7 @@ export default function App() {
           pci: pci.success ? pci.output : 'N/A'
         });
       } else if (activeTab === 'network') {
+        await refreshDNS();
         const addr = await runCommand('ip', ['addr']);
         const route = await runCommand('ip', ['route']);
         setNetworkInfo({
@@ -888,7 +808,7 @@ export default function App() {
         let cmd = 'dpkg';
         let args = ['-l'];
         const distro = kernelInfo.distro.toLowerCase();
-        
+
         if (distro.includes('arch') || distro.includes('manjaro')) {
           cmd = 'pacman';
           args = ['-Q'];
@@ -931,10 +851,10 @@ export default function App() {
       } else if (activeTab === 'startup') {
         const systemServices = await runCommand('systemctl', ['list-unit-files', '--type=service', '--state=enabled']);
         // Use sh -c to expand ~ and handle potential missing directories gracefully
-        const userAutostart = await runCommand('sh', ['-c', 'ls ~/.config/autostart /etc/xdg/autostart 2>/dev/null']);
-        
+        const userAutostart: any = await invoke('autostart_files');
+
         let allStartup: any[] = [];
-        
+
         if (systemServices.success) {
           const lines = systemServices.output.split('\n').slice(1);
           allStartup = lines.map((line: string) => {
@@ -943,13 +863,13 @@ export default function App() {
             return { name: parts[0], status: parts[1], type: 'system' };
           }).filter(Boolean);
         }
-        
+
         if (userAutostart.success) {
           const files = userAutostart.output.split('\n').filter((f: string) => f.endsWith('.desktop'));
           const userApps = files.map((f: string) => ({ name: f, status: 'enabled', type: 'user' }));
           allStartup = [...allStartup, ...userApps];
         }
-        
+
         setStartup(allStartup);
       }
     };
@@ -1015,46 +935,36 @@ export default function App() {
   };
 
   const updateKernel = async () => {
+    if (!isNative) { addAlert('warning', 'Kernel updates require the desktop app.'); return; }
     setIsKernelUpdating(true);
-    addAlert('info', 'Checking for kernel updates...');
-    const distro = kernelInfo.distro.toLowerCase();
-    let cmd = '';
-    let args: string[] = [];
-
-    if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
-      cmd = 'apt-get';
-      args = ['install', '--only-upgrade', 'linux-image-generic', '-y'];
-    } else if (distro.includes('arch')) {
-      cmd = 'pacman';
-      args = ['-S', 'linux', '--noconfirm'];
-    } else if (distro.includes('fedora')) {
-      cmd = 'dnf';
-      args = ['upgrade', 'kernel', '-y'];
-    }
-
-    if (cmd) {
-      const res = await runCommand(cmd, args, true);
-      if (res.success) {
-        addAlert('success', 'Kernel update completed. Please reboot.');
-      }
-    }
-    setIsKernelUpdating(false);
+    try {
+      const res: any = await invoke('update_kernel');
+      setMaintenanceOutput(prev => prev + res.output + (res.error || ''));
+      addAlert(res.success ? 'success' : 'error', res.success
+        ? 'Kernel update check completed. Review package output; reboot if a new kernel was installed.' : res.error);
+    } catch (err) { addAlert('error', String(err)); }
+    finally { setIsKernelUpdating(false); }
   };
 
   const removeKernel = async (name: string) => {
-    addAlert('info', `Removing kernel ${name}...`);
-    const distro = kernelInfo.distro.toLowerCase();
-    let res;
-    if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
-      res = await runCommand('apt-get', ['purge', '-y', name], true);
-    } else if (distro.includes('arch')) {
-      res = await runCommand('pacman', ['-Rs', '--noconfirm', name], true);
-    }
+    if (!isNative) return;
+    try {
+      const plan: any = await invoke('preview_kernel_removal', { name });
+      if (!plan.success) throw new Error(plan.error);
+      setKernelRemovalPlan({ name, output: plan.output });
+    } catch (err) { addAlert('error', String(err)); }
+  };
 
-    if (res?.success) {
-      addAlert('success', `Kernel ${name} removed`);
-      setOldKernels(prev => prev.filter(k => k.name !== name));
-    }
+  const confirmKernelRemoval = async () => {
+    if (!kernelRemovalPlan || isKernelRemoving) return;
+    setIsKernelRemoving(true);
+    try {
+      const res: any = await invoke('remove_kernel', { name: kernelRemovalPlan.name, expectedPlan: kernelRemovalPlan.output });
+      if (!res.success) throw new Error(res.error);
+      addAlert('success', 'Kernel removed; running and newest backup kernels were preserved.');
+      setRefreshCounter(prev => prev + 1);
+    } catch (err) { addAlert('error', String(err)); }
+    finally { setKernelRemovalPlan(null); setIsKernelRemoving(false); }
   };
 
   const toggleTheme = () => setTheme((prev: string) => prev === 'light' ? 'dark' : 'light');
@@ -1086,7 +996,7 @@ export default function App() {
             Update Available: {latestVersion} is now out!
           </div>
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => openExternal(latestReleaseUrl || TUXPULSE_RELEASES_URL)}
               className="text-[10px] font-bold uppercase border border-white/30 px-3 py-1 hover:bg-white hover:text-blue-600 transition-all"
             >
@@ -1144,7 +1054,7 @@ export default function App() {
         </nav>
 
         <div className="flex-shrink-0 p-4 border-t border-[#E4E3E0]/10 bg-[#141414]">
-          <button 
+          <button
             onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
             className={cn(
               "w-full py-3 font-bold uppercase tracking-widest text-[10px] transition-all mb-4",
@@ -1153,7 +1063,7 @@ export default function App() {
           >
             {isSidebarOpen ? (theme === 'light' ? 'Dark mode' : 'Light mode') : (theme === 'light' ? 'D' : 'L')}
           </button>
-          <button 
+          <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="w-full flex items-center justify-center p-2 hover:bg-[#E4E3E0]/10 rounded-lg transition-colors"
           >
@@ -1193,9 +1103,9 @@ export default function App() {
             )}
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
-              <input 
-                type="text" 
-                placeholder="Search system..." 
+              <input
+                type="text"
+                placeholder="Search system..."
                 className={cn(
                   "pl-10 pr-4 py-2 border bg-transparent text-sm focus:outline-none focus:ring-1",
                   theme === 'light' ? "border-[#141414] focus:ring-[#141414]" : "border-[#E4E3E0]/20 focus:ring-[#E4E3E0]"
@@ -1204,7 +1114,7 @@ export default function App() {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               />
             </div>
-            <button 
+            <button
               onClick={toggleTheme}
               className={cn(
                 "p-2 border transition-all",
@@ -1242,7 +1152,7 @@ export default function App() {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#14141420" : "#E4E3E010"} />
                           <XAxis dataKey="time" hide />
                           <YAxis domain={[0, 100]} hide />
-                          <Tooltip 
+                          <Tooltip
                             contentStyle={{ backgroundColor: theme === 'dark' ? '#141414' : '#fff', border: '1px solid #E4E3E020' }}
                             itemStyle={{ color: '#2563eb' }}
                           />
@@ -1257,7 +1167,7 @@ export default function App() {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#14141420" : "#E4E3E010"} />
                           <XAxis dataKey="time" hide />
                           <YAxis domain={[0, 100]} hide />
-                          <Tooltip 
+                          <Tooltip
                             contentStyle={{ backgroundColor: theme === 'dark' ? '#141414' : '#fff', border: '1px solid #E4E3E020' }}
                             itemStyle={{ color: '#16a34a' }}
                           />
@@ -1272,7 +1182,7 @@ export default function App() {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#14141420" : "#E4E3E010"} />
                           <XAxis dataKey="time" hide />
                           <YAxis domain={[0, 100]} hide />
-                          <Tooltip 
+                          <Tooltip
                             contentStyle={{ backgroundColor: theme === 'dark' ? '#141414' : '#fff', border: '1px solid #E4E3E020' }}
                             itemStyle={{ color: '#ea580c' }}
                           />
@@ -1287,7 +1197,7 @@ export default function App() {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#14141420" : "#E4E3E010"} />
                           <XAxis dataKey="time" hide />
                           <YAxis domain={[0, 100]} hide />
-                          <Tooltip 
+                          <Tooltip
                             contentStyle={{ backgroundColor: theme === 'dark' ? '#141414' : '#fff', border: '1px solid #E4E3E020' }}
                             itemStyle={{ color: '#8b5cf6' }}
                           />
@@ -1302,7 +1212,7 @@ export default function App() {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#14141420" : "#E4E3E010"} />
                           <XAxis dataKey="time" hide />
                           <YAxis hide />
-                          <Tooltip 
+                          <Tooltip
                             contentStyle={{ backgroundColor: theme === 'dark' ? '#141414' : '#fff', border: '1px solid #E4E3E020' }}
                           />
                           <Line type="monotone" dataKey="netIn" stroke="#9333ea" strokeWidth={2} dot={false} name="Inbound" />
@@ -1318,7 +1228,7 @@ export default function App() {
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#14141420" : "#E4E3E010"} />
                             <XAxis dataKey="time" hide />
                             <YAxis domain={[0, 100]} hide />
-                            <Tooltip 
+                            <Tooltip
                               contentStyle={{ backgroundColor: theme === 'dark' ? '#141414' : '#fff', border: '1px solid #E4E3E020' }}
                               itemStyle={{ color: '#06b6d4' }}
                             />
@@ -1334,52 +1244,52 @@ export default function App() {
           {activeTab === 'maintenance' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <MaintenanceCard 
-                  title="Update Package Lists" 
+                <MaintenanceCard
+                  title="Update Package Lists"
                   desc="Synchronize package index files from their sources."
                   icon={<RefreshCw />}
                   onClick={() => runMaintenance('apt-get update')}
                   theme={theme}
                 />
-                <MaintenanceCard 
-                  title="Upgrade Packages" 
+                <MaintenanceCard
+                  title="Upgrade Packages"
                   desc="Install the newest versions of all packages currently installed."
                   icon={<Download />}
                   onClick={() => runMaintenance('apt-get upgrade -y')}
                   theme={theme}
                 />
-                <MaintenanceCard 
-                  title="Autoremove" 
-                  desc="Remove packages that were automatically installed and are no longer needed."
+                <MaintenanceCard
+                  title="Review unused packages"
+                  desc="Use distribution tools to review unused packages and preserve boot kernels."
                   icon={<Trash2 />}
-                  onClick={() => runMaintenance('apt-get autoremove -y')}
+                  onClick={() => addAlert('info', 'Review orphaned packages in your distribution package manager to preserve boot kernels.')}
                   theme={theme}
                 />
-                <MaintenanceCard 
-                  title="Autoclean" 
+                <MaintenanceCard
+                  title="Autoclean"
                   desc="Clear out the local repository of retrieved package files."
                   icon={<Wrench />}
                   onClick={() => runMaintenance('apt-get autoclean')}
                   theme={theme}
                 />
-                <MaintenanceCard 
-                  title="Update Flatpak" 
+                <MaintenanceCard
+                  title="Update Flatpak"
                   desc="Update all installed Flatpak applications and runtimes."
                   icon={<Globe />}
                   onClick={() => runMaintenance('flatpak update -y')}
                   theme={theme}
                 />
-                <MaintenanceCard 
-                  title="Full Maintenance" 
-                  desc="Run all maintenance tasks sequentially (Update, Upgrade, Autoremove, Clean)."
+                <MaintenanceCard
+                  title="Full Maintenance"
+                  desc="Update, upgrade and clean caches. Review package removals separately."
                   icon={<Zap />}
                   onClick={() => runMaintenance('full')}
                   theme={theme}
                   highlight
                 />
-                <MaintenanceCard 
-                  title="Fix Spotify GPG" 
-                  desc="Resolve public key signature errors for Spotify repository."
+                <MaintenanceCard
+                  title="Spotify signing key"
+                  desc="Open official signing-key instructions. No APT trust keys are installed automatically."
                   icon={<Shield />}
                   onClick={fixSpotifyGPG}
                   theme={theme}
@@ -1409,8 +1319,8 @@ export default function App() {
                       disabled={isDNSSetting}
                       className={cn(
                         "p-4 border text-left transition-all relative group overflow-hidden",
-                        selectedDNS === provider.id 
-                          ? "border-blue-600 bg-blue-600/5" 
+                        selectedDNS === provider.id
+                          ? "border-blue-600 bg-blue-600/5"
                           : (theme === 'light' ? "bg-white border-[#14141410] hover:border-[#141414]" : "bg-[#141414] border-[#E4E3E0]/10 hover:border-[#E4E3E0]/30"),
                         isDNSSetting && "opacity-50 cursor-wait"
                       )}
@@ -1424,7 +1334,7 @@ export default function App() {
                       <p className="text-[10px] font-mono opacity-50 truncate">
                         {provider.primary || 'Auto-detect'} {provider.secondary && `| ${provider.secondary}`}
                       </p>
-                      
+
                       {/* Hover Effect Bar */}
                       <div className={cn(
                         "absolute bottom-0 left-0 h-0.5 bg-blue-600 transition-all duration-300",
@@ -1433,7 +1343,7 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                
+
                 <div className="pt-4 border-t border-current/10 flex items-center gap-4 text-[10px] opacity-40 italic">
                   <Info size={12} />
                   <p>Changes will apply to all active ethernet and wireless connections using NetworkManager (nmcli).</p>
@@ -1465,9 +1375,9 @@ export default function App() {
                 <div className="space-y-4 max-w-md">
                   {Object.entries(cleanerOptions).map(([key, value]) => (
                     <label key={key} className="flex items-center gap-3 cursor-pointer group">
-                      <input 
-                         type="checkbox" 
-                         checked={value} 
+                      <input
+                         type="checkbox"
+                         checked={value}
                          onChange={() => setCleanerOptions((prev: any) => ({ ...prev, [key]: !value }))}
                          className="w-5 h-5 accent-blue-600"
                       />
@@ -1477,7 +1387,7 @@ export default function App() {
                     </label>
                   ))}
                 </div>
-                <button 
+                <button
                   onClick={runCleaner}
                   className="mt-8 px-8 py-3 bg-blue-600 text-white font-bold uppercase tracking-widest text-xs hover:bg-blue-700 transition-all"
                 >
@@ -1492,8 +1402,8 @@ export default function App() {
               <div className="flex gap-4">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Search startup items..."
                     value={searchQuery}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
@@ -1531,7 +1441,7 @@ export default function App() {
                         </td>
                         <td className="px-6 py-4 opacity-50">{item.type}</td>
                         <td className="px-6 py-4 text-right">
-                          <button 
+                          <button
                             onClick={() => toggleStartup(item.name, item.status === 'enabled')}
                             className="p-2 hover:bg-blue-600 hover:text-white transition-all"
                           >
@@ -1591,7 +1501,7 @@ export default function App() {
                         <td className="p-4">{proc.mem}%</td>
                         <td className="p-4 opacity-60">{proc.user}</td>
                         <td className="p-4">
-                          <button 
+                          <button
                             onClick={async () => {
                               const res = await runCommand('kill', ['-9', proc.pid.toString()]);
                               if (res.success) addAlert('info', `Process ${proc.pid} terminated`);
@@ -1629,7 +1539,7 @@ export default function App() {
                     </span>
                   </div>
                   <div className="flex gap-2 pt-4">
-                    <button 
+                    <button
                       onClick={async () => {
                         addAlert('info', `Starting ${service.name}...`);
                         await runCommand('systemctl', ['start', service.name], true);
@@ -1641,7 +1551,7 @@ export default function App() {
                     >
                       <Play size={12} /> Start
                     </button>
-                    <button 
+                    <button
                       onClick={async () => {
                         addAlert('info', `Stopping ${service.name}...`);
                         await runCommand('systemctl', ['stop', service.name], true);
@@ -1653,7 +1563,7 @@ export default function App() {
                     >
                       <Square size={12} /> Stop
                     </button>
-                    <button 
+                    <button
                       onClick={async () => {
                         addAlert('info', `Restarting ${service.name}...`);
                         await runCommand('systemctl', ['restart', service.name], true);
@@ -1689,8 +1599,8 @@ export default function App() {
                         <span>Total: {disk.size}</span>
                       </div>
                       <div className="h-1 bg-current/10 overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-600 transition-all duration-500" 
+                        <div
+                          className="h-full bg-blue-600 transition-all duration-500"
                           style={{ width: `${disk.usage}%` }}
                         />
                       </div>
@@ -1706,7 +1616,7 @@ export default function App() {
             <div className="space-y-8">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold uppercase tracking-tighter">Kernel Management</h2>
-                <button 
+                <button
                   onClick={updateKernel}
                   disabled={isKernelUpdating}
                   className={cn(
@@ -1744,7 +1654,7 @@ export default function App() {
                   <h3 className="text-sm font-bold uppercase tracking-widest opacity-40">Old Kernels</h3>
                   <span className="text-[10px] font-bold opacity-40 uppercase">{oldKernels.length} Found</span>
                 </div>
-                
+
                 {oldKernels.length > 0 ? (
                   <div className={cn(
                     "border overflow-hidden",
@@ -1766,7 +1676,7 @@ export default function App() {
                             <td className="px-6 py-4 opacity-50">{k.version}</td>
                             <td className="px-6 py-4 opacity-50">{k.release}</td>
                             <td className="px-6 py-4 text-right">
-                              <button 
+                              <button
                                 onClick={() => removeKernel(k.name)}
                                 className="text-red-500 hover:text-red-600 transition-colors p-1"
                                 title="Remove Kernel"
@@ -1800,8 +1710,8 @@ export default function App() {
                 <div className="flex gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Search installed packages..."
                       value={searchQuery}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
@@ -1855,7 +1765,7 @@ export default function App() {
                 </div>
                 <div className="flex gap-4">
                   {selectedApps.length > 0 && (
-                    <button 
+                    <button
                       onClick={async () => {
                         addAlert('info', `Batch installing ${selectedApps.length} apps...`);
                         // This is a simplified batch install
@@ -1886,13 +1796,13 @@ export default function App() {
                       Install Selected ({selectedApps.length})
                     </button>
                   )}
-                  <button 
+                  <button
                     onClick={() => {
                       addAlert('info', 'Refreshing package list...');
                       // Trigger a re-fetch by toggling a dummy state or just calling fetchData
                       // Since fetchData is inside useEffect, we can't call it directly easily
                       // But we can just change activeTab to something else and back, or use a refresh counter
-                      setSearchQuery((prev: string) => prev); // This won't work. 
+                      setSearchQuery((prev: string) => prev); // This won't work.
                       // I'll add a refreshCounter state
                       setRefreshCounter((prev: number) => prev + 1);
                     }}
@@ -1905,8 +1815,8 @@ export default function App() {
                   </button>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Search apps..."
                       value={searchQuery}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
@@ -1920,8 +1830,8 @@ export default function App() {
               </div>
 
               {Object.entries(APPS_CATALOG).map(([category, apps]) => {
-                const filteredApps = apps.filter(app => 
-                  app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                const filteredApps = apps.filter(app =>
+                  app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   app.desc.toLowerCase().includes(searchQuery.toLowerCase())
                 );
 
@@ -1935,11 +1845,11 @@ export default function App() {
                         let nativePkg = app.packages.apt;
                         if (distroType === 'arch') nativePkg = app.packages.pacman;
                         else if (distroType === 'fedora') nativePkg = app.packages.dnf;
-                        
+
                         const isNativeInstalled = nativePkg && packages.some((p: any) => p.name === nativePkg);
                         const isFlatpakInstalled = app.flatpak && flatpaks.includes(app.flatpak);
                         const isNativeAvailable = nativePkg && (availablePackages.has(nativePkg) || isNativeInstalled);
-                        
+
                         return (
                           <div key={app.id} className={cn(
                             "border p-6 flex flex-col justify-between group transition-all relative",
@@ -1951,8 +1861,8 @@ export default function App() {
                                   <CheckCircle2 size={12} /> Installed
                                 </span>
                               )}
-                              <input 
-                                type="checkbox" 
+                              <input
+                                type="checkbox"
                                 checked={selectedApps.includes(app.id)}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                   if (e.target.checked) setSelectedApps((prev: string[]) => [...prev, app.id]);
@@ -1975,7 +1885,7 @@ export default function App() {
                               {!isNativeInstalled && !isFlatpakInstalled ? (
                                 <>
                                   {nativePkg && (
-                                    <button 
+                                    <button
                                       disabled={!isNativeAvailable}
                                       onClick={async () => {
                                         addAlert('info', `Installing ${app.name} (Native)...`);
@@ -1998,7 +1908,7 @@ export default function App() {
                                     </button>
                                   )}
                                   {app.flatpak && (
-                                    <button 
+                                    <button
                                       onClick={async () => {
                                         addAlert('info', `Installing ${app.name} (Flatpak)...`);
                                         const res = await runCommand('flatpak', ['install', '-y', 'flathub', app.flatpak]);
@@ -2017,7 +1927,7 @@ export default function App() {
                                   )}
                                 </>
                               ) : (
-                                <button 
+                                <button
                                   onClick={async () => {
                                     addAlert('info', `Removing ${app.name}...`);
                                     if (isNativeInstalled) {
@@ -2025,9 +1935,11 @@ export default function App() {
                                       let args = ['remove', '-y', nativePkg!];
                                       if (distroType === 'arch') { removeCmd = 'pacman'; args = ['-R', '--noconfirm', nativePkg!]; }
                                       else if (distroType === 'fedora') { removeCmd = 'dnf'; args = ['remove', '-y', nativePkg!]; }
-                                      await runCommand(removeCmd, args, true);
+                                      const result = await runCommand(removeCmd, args, true);
+                                      if (!result.success) return;
                                     } else if (isFlatpakInstalled) {
-                                      await runCommand('flatpak', ['uninstall', '-y', app.flatpak!]);
+                                      const result = await runCommand('flatpak', ['uninstall', '-y', app.flatpak!]);
+                                      if (!result.success) return;
                                     }
                                     setRefreshCounter((prev: number) => prev + 1);
                                     addAlert('success', `${app.name} removed`);
@@ -2057,7 +1969,7 @@ export default function App() {
                   <p className="text-xs font-bold opacity-40 uppercase tracking-[0.3em]">
                     Current: {APP_VERSION} | Latest: {latestVersion}
                     {updateAvailable && (
-                      <button 
+                      <button
                         onClick={() => openExternal(latestReleaseUrl || TUXPULSE_RELEASES_URL)}
                         className="ml-4 px-3 py-1 bg-blue-600 text-white text-[10px] rounded-full hover:bg-blue-700 transition-all animate-pulse"
                       >
@@ -2076,7 +1988,7 @@ export default function App() {
                   <div className="space-y-4">
                     <h3 className="text-2xl font-bold uppercase tracking-tight border-b border-current pb-2">The Project</h3>
                     <p className="opacity-80 leading-relaxed font-serif text-lg">
-                      TuxPulse is a high-performance system management toolkit designed for Linux distributions. 
+                      TuxPulse is a high-performance system management toolkit designed for Linux distributions.
                       It provides a unified interface for system updates, cleanup, and real-time monitoring while maintaining a strict security posture.
                     </p>
                   </div>
@@ -2091,20 +2003,20 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-4">
-                    <button 
+                    <button
                       onClick={() => openExternal('https://github.com/eoliann/TuxPulse2')}
                       className={cn(
                         "flex-1 min-w-[140px] px-6 py-3 border font-bold uppercase text-[10px] tracking-widest transition-all",
                         theme === 'light' ? "border-[#141414] hover:bg-[#141414] hover:text-[#E4E3E0]" : "border-[#E4E3E0]/20 hover:bg-[#E4E3E0] hover:text-[#141414]"
                       )}
                     >GitHub Repo</button>
-                    <button 
+                    <button
                       onClick={() => openExternal('https://t.me/tuxpulse')}
                       className={cn(
                         "flex-1 min-w-[140px] px-6 py-3 border font-bold uppercase text-[10px] tracking-widest transition-all bg-blue-600 text-white border-blue-600 hover:bg-blue-700",
                       )}
                     >Telegram Group</button>
-                    <button 
+                    <button
                       onClick={() => openExternal('https://tuxpulse.org/docs')}
                       className={cn(
                         "flex-1 min-w-[140px] px-6 py-3 border font-bold uppercase text-[10px] tracking-widest transition-all",
@@ -2121,14 +2033,14 @@ export default function App() {
                       If TuxPulse helps you keep your system clean and fast, consider supporting its development.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <button 
+                      <button
                         onClick={() => openExternal('https://www.paypal.com/donate/?hosted_button_id=PTH2EXUDS423S')}
                         className="flex items-center justify-center gap-3 p-4 bg-[#003087] text-white hover:bg-[#002466] transition-all group"
                       >
                         <span className="font-bold italic text-lg tracking-tighter">PayPal</span>
                         <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => openExternal('http://revolut.me/adriannm9?style=plastic')}
                         className="flex items-center justify-center gap-3 p-4 bg-white text-black border border-black/10 hover:bg-gray-50 transition-all group"
                       >
@@ -2150,7 +2062,7 @@ export default function App() {
                     <h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">Legal & License</h4>
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <p className="text-xs font-mono opacity-60">MIT License © 2026</p>
-                      <button 
+                      <button
                         onClick={() => setShowLicense(true)}
                         className="text-[10px] font-bold uppercase underline hover:text-blue-600 transition-colors tracking-widest"
                       >
@@ -2170,7 +2082,7 @@ export default function App() {
                   )}>
                     <div className="p-6 border-b border-current/10 flex justify-between items-center">
                       <h3 className="text-sm font-bold uppercase tracking-[0.2em]">License & Disclaimer</h3>
-                      <button 
+                      <button
                         onClick={() => setShowLicense(false)}
                         className="p-2 hover:bg-red-500 hover:text-white transition-all"
                       >
@@ -2211,7 +2123,7 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
                       </div>
                     </div>
                     <div className="p-6 border-t border-current/10 flex justify-end">
-                      <button 
+                      <button
                         onClick={() => setShowLicense(false)}
                         className={cn(
                           "px-6 py-2 text-[10px] font-bold uppercase tracking-widest transition-all",
@@ -2230,59 +2142,59 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
           {activeTab === 'tools' && (
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <ToolCard 
-                  title="System Cleanup" 
-                  desc="Remove unused packages and clear cache." 
-                  icon={<Trash2 />} 
-                  onAction={runCleaner} 
-                  theme={theme} 
+                <ToolCard
+                  title="System Cleanup"
+                  desc="Remove unused packages and clear cache."
+                  icon={<Trash2 />}
+                  onAction={runCleaner}
+                  theme={theme}
                 />
-                <ToolCard 
-                  title="Update Manager" 
-                  desc="Check for system and kernel updates." 
-                  icon={<RefreshCw />} 
+                <ToolCard
+                  title="Update Manager"
+                  desc="Check for system and kernel updates."
+                  icon={<RefreshCw />}
                   onAction={async () => {
                     addAlert('info', 'Checking for updates...');
                     await runCommand('apt-get', ['update']);
-                  }} 
-                  theme={theme} 
+                  }}
+                  theme={theme}
                 />
-                <ToolCard 
-                  title="Log Analyzer" 
-                  desc="Scan system logs for anomalies." 
-                  icon={<Terminal />} 
+                <ToolCard
+                  title="Log Analyzer"
+                  desc="Scan system logs for anomalies."
+                  icon={<Terminal />}
                   onAction={async () => {
                     addAlert('info', 'Log analysis in progress');
                     await runCommand('journalctl', ['-p', '3', '-n', '50']);
-                  }} 
-                  theme={theme} 
+                  }}
+                  theme={theme}
                 />
-                <ToolCard 
-                  title="Package Search" 
-                  desc="Search for software in repositories." 
-                  icon={<Search />} 
-                  onAction={() => addAlert('info', 'Package search ready')} 
-                  theme={theme} 
+                <ToolCard
+                  title="Package Search"
+                  desc="Search for software in repositories."
+                  icon={<Search />}
+                  onAction={() => addAlert('info', 'Package search ready')}
+                  theme={theme}
                 />
-                <ToolCard 
-                  title="Kernel Tweak" 
-                  desc="Optimize kernel parameters for performance." 
-                  icon={<Settings />} 
+                <ToolCard
+                  title="Kernel Tweak"
+                  desc="Optimize kernel parameters for performance."
+                  icon={<Settings />}
                   onAction={async () => {
                     addAlert('info', 'Kernel optimizer ready');
                     await runCommand('uname', ['-a']);
-                  }} 
-                  theme={theme} 
+                  }}
+                  theme={theme}
                 />
-                <ToolCard 
-                  title="Network Scan" 
-                  desc="Analyze local network connections." 
-                  icon={<Network />} 
+                <ToolCard
+                  title="Network Scan"
+                  desc="Analyze local network connections."
+                  icon={<Network />}
                   onAction={async () => {
                     addAlert('info', 'Network scanner ready');
                     await runCommand('ip', ['addr']);
-                  }} 
-                  theme={theme} 
+                  }}
+                  theme={theme}
                 />
               </div>
 
@@ -2316,21 +2228,12 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
                   {systemLogs.length > 0 ? (
                     systemLogs.map((log: string, i: number) => (
                       <p key={i} className={cn(
-                        log.toLowerCase().includes('error') ? "text-red-400" : 
+                        log.toLowerCase().includes('error') ? "text-red-400" :
                         log.toLowerCase().includes('warn') ? "text-yellow-400" : "opacity-80"
                       )}>{log}</p>
                     ))
                   ) : (
-                    <>
-                      <p className="opacity-40">Apr 09 06:13:48 tuxpulse systemd[1]: Starting TuxPulse Secure Helper...</p>
-                      <p className="text-green-400">Apr 09 06:13:49 tuxpulse TuxPulseHelper: Secure Helper started successfully</p>
-                      <p className="opacity-40">Apr 09 06:14:02 tuxpulse kernel: [1234.56] audit: type=1400 ...</p>
-                      <p className="text-yellow-400">Apr 09 06:15:22 tuxpulse TuxPulseHelper: Connection from UID 1000</p>
-                      <p className="opacity-40">Apr 09 06:15:22 tuxpulse TuxPulseHelper: Executing allowed command: status</p>
-                      <p className="opacity-40">Apr 09 06:18:11 tuxpulse systemd[1]: Reloading configuration...</p>
-                      <p className="text-blue-400">Apr 09 06:20:01 tuxpulse CRON[999]: (root) CMD (cleanup-task)</p>
-                      <p className="opacity-40">Apr 09 06:22:45 tuxpulse kernel: [2345.67] pcieport 0000:00:1c.0: AER: Corrected error</p>
-                    </>
+                    <p className="opacity-40">No system logs available.</p>
                   )}
                 </div>
               </div>
@@ -2339,13 +2242,8 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
                 "border p-8",
                 theme === 'light' ? "bg-white border-[#141414]" : "bg-[#141414] border-[#E4E3E0]/10"
               )}>
-                <h3 className="text-xl font-bold uppercase mb-6">Secure System Files</h3>
-                <p className="text-sm opacity-70 mb-6">Download the corrected and secured system files to replace the vulnerable daemon on your Linux machine.</p>
-                <div className="space-y-4">
-                  <FileDownloadItem name="tuxpulse_helper_secure.py" desc="Secure Python helper with UID verification" theme={theme} />
-                  <FileDownloadItem name="tuxpulse-helper.service" desc="Hardened systemd unit file" theme={theme} />
-                  <FileDownloadItem name="com.eoliann.tuxpulse.policy" desc="Polkit policy for secure GUI auth" theme={theme} />
-                </div>
+                <h3 className="text-xl font-bold uppercase mb-6">System integration</h3>
+                <p className="text-sm opacity-70">TuxPulse authenticates individual system operations. No background root daemon or custom polkit policy is required. See the release notes to remove an older developer installation.</p>
               </div>
             </div>
           )}
@@ -2361,7 +2259,7 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
                     <h2 className="text-3xl font-bold uppercase tracking-tighter mb-2">Security Audit</h2>
                     <p className="opacity-60 font-serif italic">Scan your system for common vulnerabilities and misconfigurations.</p>
                   </div>
-                  <button 
+                  <button
                     onClick={runSecurityScan}
                     disabled={isScanning}
                     className={cn(
@@ -2379,12 +2277,12 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
                     securityScanResults.map((res: any, i: number) => (
                       <div key={i} className={cn(
                         "p-4 border",
-                        res.status === 'critical' ? "border-red-500 bg-red-500/5" : 
+                        res.status === 'critical' ? "border-red-500 bg-red-500/5" :
                         res.status === 'warning' ? "border-yellow-500 bg-yellow-500/5" : "border-green-500 bg-green-500/5"
                       )}>
                         <div className="flex items-center gap-2 mb-2">
-                          {res.status === 'critical' ? <AlertTriangle className="w-4 h-4 text-red-500" /> : 
-                           res.status === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-500" /> : 
+                          {res.status === 'critical' ? <AlertTriangle className="w-4 h-4 text-red-500" /> :
+                           res.status === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-500" /> :
                            <CheckCircle2 className="w-4 h-4 text-green-500" />}
                           <h4 className="font-bold text-xs uppercase">{res.title}</h4>
                         </div>
@@ -2459,7 +2357,7 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
                   <h3 className="text-xl font-bold uppercase tracking-tight border-b border-current pb-2">Hardening Guide</h3>
                   <div className="p-4 bg-blue-600/5 border border-blue-600/20">
                     <p className="text-xs leading-relaxed opacity-80">
-                      TuxPulse uses a secure execution model. All system commands are validated against a strict allow-list on the backend. 
+                      TuxPulse uses a secure execution model. All system commands are validated against a strict allow-list on the backend.
                       Direct shell execution is disabled to prevent command injection.
                     </p>
                   </div>
@@ -2476,39 +2374,39 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
               )}>
                 <h2 className="text-2xl font-bold uppercase tracking-tighter mb-2">System Alerts</h2>
                 <p className="opacity-60 font-serif italic mb-8">Configure thresholds for automated system notifications.</p>
-                
+
                 <div className="space-y-4">
-                  <AlertSetting 
-                    label="CPU Usage Threshold" 
-                    value={alertThresholds.cpu} 
+                  <AlertSetting
+                    label="CPU Usage Threshold"
+                    value={alertThresholds.cpu}
                     onChange={(v: number) => setAlertThresholds((prev: any) => ({ ...prev, cpu: v }))}
-                    unit="%" 
-                    theme={theme} 
+                    unit="%"
+                    theme={theme}
                   />
-                  <AlertSetting 
-                    label="RAM Usage Threshold" 
-                    value={alertThresholds.ram} 
+                  <AlertSetting
+                    label="RAM Usage Threshold"
+                    value={alertThresholds.ram}
                     onChange={(v: number) => setAlertThresholds((prev: any) => ({ ...prev, ram: v }))}
-                    unit="%" 
-                    theme={theme} 
+                    unit="%"
+                    theme={theme}
                   />
-                  <AlertSetting 
-                    label="Disk Usage Warning" 
-                    value={alertThresholds.disk} 
+                  <AlertSetting
+                    label="Disk Usage Warning"
+                    value={alertThresholds.disk}
                     onChange={(v: number) => setAlertThresholds((prev: any) => ({ ...prev, disk: v }))}
-                    unit="%" 
-                    theme={theme} 
+                    unit="%"
+                    theme={theme}
                   />
-                  <AlertSetting 
-                    label="Network Spike" 
-                    value={alertThresholds.network} 
+                  <AlertSetting
+                    label="Network Spike"
+                    value={alertThresholds.network}
                     onChange={(v: number) => setAlertThresholds((prev: any) => ({ ...prev, network: v }))}
-                    unit="MB/s" 
-                    theme={theme} 
+                    unit="MB/s"
+                    theme={theme}
                   />
                 </div>
 
-                <button 
+                <button
                   onClick={() => addAlert('success', 'Alert thresholds updated')}
                   className={cn(
                     "mt-8 px-8 py-3 font-bold uppercase tracking-widest text-xs transition-all",
@@ -2523,19 +2421,34 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
         </div>
       </main>
 
+      {kernelRemovalPlan && (
+        <div className="fixed inset-0 z-[110] bg-black/70 flex items-center justify-center p-6" role="dialog" aria-modal="true" aria-labelledby="kernel-removal-title">
+          <div className="bg-[#141414] text-[#E4E3E0] border border-white/20 p-6 max-w-3xl w-full space-y-4">
+            <h2 id="kernel-removal-title" className="text-xl font-bold">Review kernel removal</h2>
+            <p>{kernelRemovalPlan.name}</p>
+            <pre className="max-h-96 overflow-auto text-xs whitespace-pre-wrap">{kernelRemovalPlan.output}</pre>
+            <p className="text-sm opacity-70">The running kernel and newest backup are protected. Administrator authorization follows confirmation.</p>
+            <div className="flex justify-end gap-4">
+              <button autoFocus disabled={isKernelRemoving} onClick={() => setKernelRemovalPlan(null)} className="border px-4 py-2">Cancel</button>
+              <button disabled={isKernelRemoving} onClick={confirmKernelRemoval} className="bg-red-600 text-white px-4 py-2">{isKernelRemoving ? 'Removing...' : 'Confirm removal'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notifications */}
       <div className="fixed bottom-8 right-8 space-y-4 z-[100]">
         {alerts.slice(0, 3).map((alert: any) => (
           <div key={alert.id} className={cn(
             "p-4 border-l-4 shadow-xl flex items-center justify-between gap-4 min-w-[300px] animate-in slide-in-from-right",
-            alert.type === 'error' ? "bg-red-50 border-red-500 text-red-900" : 
-            alert.type === 'warning' ? "bg-orange-50 border-orange-500 text-orange-900" : 
+            alert.type === 'error' ? "bg-red-50 border-red-500 text-red-900" :
+            alert.type === 'warning' ? "bg-orange-50 border-orange-500 text-orange-900" :
             alert.type === 'success' ? "bg-green-50 border-green-500 text-green-900" :
             theme === 'light' ? "bg-white border-[#141414] text-[#141414]" : "bg-[#141414] border-[#E4E3E0]/20 text-[#E4E3E0]"
           )}>
             <div className="flex items-center gap-3">
-              {alert.type === 'error' ? <AlertTriangle className="w-5 h-5" /> : 
-               alert.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> : 
+              {alert.type === 'error' ? <AlertTriangle className="w-5 h-5" /> :
+               alert.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> :
                alert.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> :
                <Info className="w-5 h-5" />}
               <div>
@@ -2553,12 +2466,12 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
 
 function NavItem({ icon, label, active, collapsed, onClick }: any) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-3 transition-all duration-200 group relative",
-        active 
-          ? "bg-[#E4E3E0] text-[#141414] font-bold" 
+        active
+          ? "bg-[#E4E3E0] text-[#141414] font-bold"
           : "text-[#E4E3E0]/60 hover:text-[#E4E3E0] hover:bg-white/5"
       )}
     >
@@ -2617,7 +2530,7 @@ function HealthWidget({ icon, label, value, status, theme }: { icon: React.React
     )}>
       <div className={cn(
         "p-2 border",
-        status === 'optimal' ? "border-green-500 text-green-500" : 
+        status === 'optimal' ? "border-green-500 text-green-500" :
         status === 'warning' ? "border-yellow-500 text-yellow-500" : "border-red-500 text-red-500"
       )}>
         {React.cloneElement(icon as React.ReactElement<any>, { size: 20 })}
@@ -2656,14 +2569,14 @@ function AlertSetting({ label, value, onChange, unit, theme }: any) {
     )}>
       <span className="font-medium">{label}</span>
       <div className="flex items-center gap-2">
-        <input 
-          type="number" 
-          value={value} 
+        <input
+          type="number"
+          value={value}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(parseInt(e.target.value) || 0)}
           className={cn(
             "w-20 p-1 border text-center font-mono focus:outline-none",
             theme === 'light' ? "border-[#141414]" : "border-[#E4E3E0]/20 bg-transparent"
-          )} 
+          )}
         />
         <span className="text-sm opacity-50">{unit}</span>
       </div>
@@ -2673,12 +2586,12 @@ function AlertSetting({ label, value, onChange, unit, theme }: any) {
 
 function ToolCard({ title, desc, icon, onAction, theme }: any) {
   return (
-    <div 
+    <div
       onClick={onAction}
       className={cn(
         "border p-6 flex flex-col justify-between group transition-all cursor-pointer",
-        theme === 'light' 
-          ? "bg-white border-[#141414] hover:bg-[#141414] hover:text-[#E4E3E0]" 
+        theme === 'light'
+          ? "bg-white border-[#141414] hover:bg-[#141414] hover:text-[#E4E3E0]"
           : "bg-[#141414] border-[#E4E3E0]/10 hover:bg-[#E4E3E0] hover:text-[#141414]"
       )}
     >
@@ -2732,7 +2645,7 @@ function InstallerItem({ title, desc, version, onInstall, theme }: { title: stri
         <h4 className="font-bold">{title} <span className="text-[10px] opacity-40 ml-2">v{version}</span></h4>
         <p className="text-xs opacity-60">{desc}</p>
       </div>
-      <button 
+      <button
         onClick={onInstall}
         className={cn(
           "px-4 py-2 text-[10px] font-bold uppercase transition-all",

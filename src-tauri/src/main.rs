@@ -1,11 +1,11 @@
 #![cfg_attr(
-  all(not(debug_assertions), target_os = "windows"),
-  windows_subsystem = "windows"
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
 )]
 
-use std::process::{Command, Stdio};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
 use std::thread;
 use tauri::{AppHandle, Emitter};
 
@@ -16,278 +16,55 @@ struct CommandResult {
     error: Option<String>,
 }
 
-#[tauri::command]
-async fn execute_system_command(command: String, args: Vec<String>, sudo: Option<bool>) -> CommandResult {
-    // Define allowed commands and their base arguments for security
-    let allowed_commands = vec![
-        "nmcli", "systemctl", "ps", "df", "lsblk", "uname", "lsmod", "journalctl", "ip", 
-        "apt-get", "apt-cache", "apt", "dnf", "pacman", "free", "uptime", "hostnamectl", "lscpu", "lsusb", "lspci",
-        "dpkg", "flatpak", "rm", "cat", "ls", "grep", "find", "sh", "bash", "pkexec", "zypper", "nala", "xdg-open"
-    ];
+mod operations;
+mod system_actions;
 
-    if !allowed_commands.contains(&command.as_str()) {
-        return CommandResult {
-            success: false,
-            output: "".into(),
-            error: Some(format!("Unauthorized command: {}", command)),
-        };
-    }
-
-    let mut cmd = if sudo.unwrap_or(false) {
-        let mut c = Command::new("pkexec");
-        c.arg(&command);
+fn execute(program: &str, args: &[String], privileged: bool) -> CommandResult {
+    let mut cmd = if privileged {
+        let mut c = Command::new("/usr/bin/pkexec");
+        c.arg(program);
         c
     } else {
-        Command::new(&command)
+        Command::new(program)
     };
-
+    cmd.env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("LC_ALL", "C");
     match cmd.args(args).output() {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            
-            if output.status.success() {
-                CommandResult {
-                    success: true,
-                    output: stdout,
-                    error: None,
-                }
-            } else {
-                CommandResult {
-                    success: false,
-                    output: stdout,
-                    error: Some(stderr),
-                }
-            }
-        }
-        Err(e) => CommandResult {
-            success: false,
-            output: "".into(),
-            error: Some(e.to_string()),
-        },
-    }
-}
-
-#[tauri::command]
-async fn execute_multiple_commands(commands: Vec<String>, sudo: bool) -> Vec<CommandResult> {
-    let mut results = Vec::new();
-    
-    if sudo {
-        let joined_commands = commands.join(" && ");
-        let output = Command::new("pkexec")
-            .args(["bash", "-c", &joined_commands])
-            .output();
-            
-        match output {
-            Ok(out) => {
-                results.push(CommandResult {
-                    success: out.status.success(),
-                    output: String::from_utf8_lossy(&out.stdout).to_string(),
-                    error: Some(String::from_utf8_lossy(&out.stderr).to_string()),
-                });
-            }
-            Err(e) => {
-                results.push(CommandResult {
-                    success: false,
-                    output: "".into(),
-                    error: Some(e.to_string()),
-                });
-            }
-        }
-    } else {
-        for command_str in commands {
-            let parts: Vec<&str> = command_str.split_whitespace().collect();
-            if parts.is_empty() { continue; }
-            let cmd_name = parts[0];
-            let args = &parts[1..];
-            
-            let output = Command::new(cmd_name).args(args).output();
-            match output {
-                Ok(out) => {
-                    results.push(CommandResult {
-                        success: out.status.success(),
-                        output: String::from_utf8_lossy(&out.stdout).to_string(),
-                        error: Some(String::from_utf8_lossy(&out.stderr).to_string()),
-                    });
-                }
-                Err(e) => {
-                    results.push(CommandResult {
-                        success: false,
-                        output: "".into(),
-                        error: Some(e.to_string()),
-                    });
-                }
-            }
-        }
-    }
-    
-    results
-}
-
-#[tauri::command]
-async fn execute_full_maintenance(profile: String) -> CommandResult {
-    let normalized = profile.to_lowercase();
-
-    let script = match normalized.as_str() {
-        "debian" => r#"
-set +e
-export DEBIAN_FRONTEND=noninteractive
-errors=0
-
-run_step() {
-  label="$1"
-  shift
-  echo
-  echo "==> ${label}"
-  printf '$'
-  printf ' %q' "$@"
-  printf '\n'
-  "$@"
-  status=$?
-  if [ "$status" -ne 0 ]; then
-    echo "[WARNING] ${label} failed with exit code ${status}"
-    errors=1
-  else
-    echo "[OK] ${label}"
-  fi
-}
-
-run_flatpak() {
-  label="$1"
-  shift
-  if ! command -v flatpak >/dev/null 2>&1; then
-    echo
-    echo "==> ${label}"
-    echo "[SKIPPED] flatpak is not installed on this system."
-    return 0
-  fi
-  run_step "${label}" flatpak "$@"
-}
-
-echo "Running TuxPulse Full Maintenance profile: debian"
-run_step "Update package database" apt-get update
-run_step "Full system upgrade" env DEBIAN_FRONTEND=noninteractive apt-get full-upgrade -y
-run_step "Remove orphaned packages" apt-get autoremove -y
-run_step "Clean APT cache" apt-get autoclean -y
-run_flatpak "Repair Flatpak installation" repair
-run_flatpak "Update Flatpak applications" update -y
-run_flatpak "Remove unused Flatpak runtimes and applications" uninstall --unused -y
-
-exit "$errors"
-"#,
-        "arch" => r#"
-set +e
-errors=0
-
-run_step() {
-  label="$1"
-  shift
-  echo
-  echo "==> ${label}"
-  printf '$'
-  printf ' %q' "$@"
-  printf '\n'
-  "$@"
-  status=$?
-  if [ "$status" -ne 0 ]; then
-    echo "[WARNING] ${label} failed with exit code ${status}"
-    errors=1
-  else
-    echo "[OK] ${label}"
-  fi
-}
-
-run_flatpak() {
-  label="$1"
-  shift
-  if ! command -v flatpak >/dev/null 2>&1; then
-    echo
-    echo "==> ${label}"
-    echo "[SKIPPED] flatpak is not installed on this system."
-    return 0
-  fi
-  run_step "${label}" flatpak "$@"
-}
-
-echo "Running TuxPulse Full Maintenance profile: arch"
-run_step "Synchronize and upgrade packages" pacman -Syu --noconfirm
-run_step "Clean pacman cache" pacman -Sc --noconfirm
-run_flatpak "Repair Flatpak installation" repair
-run_flatpak "Update Flatpak applications" update -y
-run_flatpak "Remove unused Flatpak runtimes and applications" uninstall --unused -y
-
-exit "$errors"
-"#,
-        "fedora" => r#"
-set +e
-errors=0
-
-run_step() {
-  label="$1"
-  shift
-  echo
-  echo "==> ${label}"
-  printf '$'
-  printf ' %q' "$@"
-  printf '\n'
-  "$@"
-  status=$?
-  if [ "$status" -ne 0 ]; then
-    echo "[WARNING] ${label} failed with exit code ${status}"
-    errors=1
-  else
-    echo "[OK] ${label}"
-  fi
-}
-
-run_flatpak() {
-  label="$1"
-  shift
-  if ! command -v flatpak >/dev/null 2>&1; then
-    echo
-    echo "==> ${label}"
-    echo "[SKIPPED] flatpak is not installed on this system."
-    return 0
-  fi
-  run_step "${label}" flatpak "$@"
-}
-
-echo "Running TuxPulse Full Maintenance profile: fedora"
-run_step "Upgrade packages" dnf upgrade -y
-run_step "Remove unused packages" dnf autoremove -y
-run_step "Clean DNF cache" dnf clean all
-run_flatpak "Repair Flatpak installation" repair
-run_flatpak "Update Flatpak applications" update -y
-run_flatpak "Remove unused Flatpak runtimes and applications" uninstall --unused -y
-
-exit "$errors"
-"#,
-        _ => {
-            return CommandResult {
-                success: false,
-                output: "".into(),
-                error: Some(format!("Unsupported maintenance profile: {}", profile)),
-            };
-        }
-    };
-
-    match Command::new("pkexec").args(["bash", "-lc", script]).output() {
         Ok(out) => CommandResult {
             success: out.status.success(),
-            output: String::from_utf8_lossy(&out.stdout).to_string(),
-            error: {
-                let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                if stderr.trim().is_empty() { None } else { Some(stderr) }
+            output: String::from_utf8_lossy(&out.stdout).into(),
+            error: if out.status.success() {
+                None
+            } else {
+                Some(String::from_utf8_lossy(&out.stderr).into())
             },
         },
-        Err(e) => CommandResult {
-            success: false,
-            output: "".into(),
-            error: Some(e.to_string()),
-        },
+        Err(e) => failure(e.to_string()),
     }
 }
 
+fn failure(error: String) -> CommandResult {
+    CommandResult {
+        success: false,
+        output: String::new(),
+        error: Some(error),
+    }
+}
+
+#[tauri::command]
+async fn execute_operation(operation: String, parameters: Vec<String>) -> CommandResult {
+    match operations::resolve(&operation, &parameters) {
+        Ok(op) => {
+            if op.privileged && std::path::Path::new("/run/ostree-booted").exists() {
+                return failure(
+                    "Use your immutable distribution's system tools for this operation.".into(),
+                );
+            }
+            execute(op.program, &op.args, op.privileged)
+        }
+        Err(e) => failure(e),
+    }
+}
 
 #[derive(Clone, Serialize)]
 struct MaintenanceOutputEvent {
@@ -300,8 +77,12 @@ async fn execute_full_maintenance_stream(profile: String, app_handle: AppHandle)
     let normalized = profile.to_lowercase();
 
     let script = match normalized.as_str() {
-        "debian" => r#"
+        "debian" => {
+            r#"
 set +e
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+if [ -e /run/ostree-booted ]; then echo "Immutable systems are not supported by this maintenance profile."; exit 1; fi
 export DEBIAN_FRONTEND=noninteractive
 errors=0
 
@@ -338,16 +119,21 @@ run_flatpak() {
 echo "Running TuxPulse Full Maintenance profile: debian"
 run_step "Update package database" apt-get update
 run_step "Full system upgrade" env DEBIAN_FRONTEND=noninteractive apt-get full-upgrade -y
-run_step "Remove orphaned packages" apt-get autoremove -y
+echo "[SKIPPED] Review autoremove in your package manager to protect boot kernels."
 run_step "Clean APT cache" apt-get autoclean -y
 run_flatpak "Repair Flatpak installation" repair
 run_flatpak "Update Flatpak applications" update -y
 run_flatpak "Remove unused Flatpak runtimes and applications" uninstall --unused -y
 
 exit "$errors"
-"#,
-        "arch" => r#"
+"#
+        }
+        "arch" => {
+            r#"
 set +e
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+if [ -e /run/ostree-booted ]; then echo "Immutable systems are not supported by this maintenance profile."; exit 1; fi
 errors=0
 
 run_step() {
@@ -388,9 +174,14 @@ run_flatpak "Update Flatpak applications" update -y
 run_flatpak "Remove unused Flatpak runtimes and applications" uninstall --unused -y
 
 exit "$errors"
-"#,
-        "fedora" => r#"
+"#
+        }
+        "fedora" => {
+            r#"
 set +e
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C
+if [ -e /run/ostree-booted ]; then echo "Immutable systems are not supported by this maintenance profile."; exit 1; fi
 errors=0
 
 run_step() {
@@ -425,14 +216,15 @@ run_flatpak() {
 
 echo "Running TuxPulse Full Maintenance profile: fedora"
 run_step "Upgrade packages" dnf upgrade -y
-run_step "Remove unused packages" dnf autoremove -y
+echo "[SKIPPED] Review package removals in your distribution tools."
 run_step "Clean DNF cache" dnf clean all
 run_flatpak "Repair Flatpak installation" repair
 run_flatpak "Update Flatpak applications" update -y
 run_flatpak "Remove unused Flatpak runtimes and applications" uninstall --unused -y
 
 exit "$errors"
-"#,
+"#
+        }
         _ => {
             return CommandResult {
                 success: false,
@@ -442,8 +234,8 @@ exit "$errors"
         }
     };
 
-    let mut child = match Command::new("pkexec")
-        .args(["bash", "-lc", script])
+    let mut child = match Command::new("/usr/bin/pkexec")
+        .args(["/bin/bash", "--noprofile", "--norc", "-c", script])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -553,14 +345,21 @@ exit "$errors"
         }
     } else {
         let fallback = if stderr_text.trim().is_empty() {
-            format!("Full Maintenance finished with exit code {}.", status.code().unwrap_or(-1))
+            format!(
+                "Full Maintenance finished with exit code {}.",
+                status.code().unwrap_or(-1)
+            )
         } else {
             stderr_text.clone()
         };
 
         CommandResult {
             success: false,
-            output: if stdout_text.trim().is_empty() { "".into() } else { stdout_text },
+            output: if stdout_text.trim().is_empty() {
+                "".into()
+            } else {
+                stdout_text
+            },
             error: Some(fallback),
         }
     }
@@ -583,9 +382,17 @@ async fn get_detailed_stats() -> Result<serde_json::Value, String> {
         let mut available = 0.0;
         for line in output.lines() {
             if line.starts_with("MemTotal:") {
-                total = line.split_whitespace().nth(1).and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+                total = line
+                    .split_whitespace()
+                    .nth(1)
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0);
             } else if line.starts_with("MemAvailable:") {
-                available = line.split_whitespace().nth(1).and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+                available = line
+                    .split_whitespace()
+                    .nth(1)
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0);
             }
         }
         if total > 0.0 {
@@ -596,7 +403,7 @@ async fn get_detailed_stats() -> Result<serde_json::Value, String> {
     // CPU - Using /proc/stat for much better performance than 'top'
     static mut PREV_IDLE: f64 = 0.0;
     static mut PREV_TOTAL: f64 = 0.0;
-    
+
     if let Ok(output) = std::fs::read_to_string("/proc/stat") {
         if let Some(line) = output.lines().next() {
             let parts: Vec<&str> = line.split_whitespace().collect();
@@ -617,12 +424,12 @@ async fn get_detailed_stats() -> Result<serde_json::Value, String> {
                 unsafe {
                     let total_diff = current_total - PREV_TOTAL;
                     let idle_diff = current_idle - PREV_IDLE;
-                    
+
                     if total_diff > 0.0 {
                         let cpu_usage = (total_diff - idle_diff) / total_diff * 100.0;
                         stats["cpu"] = serde_json::json!(cpu_usage.round());
                     }
-                    
+
                     PREV_TOTAL = current_total;
                     PREV_IDLE = current_idle;
                 }
@@ -649,7 +456,9 @@ async fn get_detailed_stats() -> Result<serde_json::Value, String> {
 
     // Uptime
     if let Ok(output) = Command::new("uptime").arg("-p").output() {
-        stats["uptime"] = serde_json::json!(String::from_utf8_lossy(&output.stdout).trim().replace("up ", ""));
+        stats["uptime"] = serde_json::json!(String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .replace("up ", ""));
     }
 
     // Load Average
@@ -665,7 +474,11 @@ async fn get_detailed_stats() -> Result<serde_json::Value, String> {
     }
 
     // Disk Usage (Root /)
-    if let Ok(output) = Command::new("df").arg("/").arg("--output=size,used,pcent").output() {
+    if let Ok(output) = Command::new("df")
+        .arg("/")
+        .arg("--output=size,used,pcent")
+        .output()
+    {
         let out = String::from_utf8_lossy(&output.stdout);
         let lines: Vec<&str> = out.lines().collect();
         if lines.len() > 1 {
@@ -675,8 +488,10 @@ async fn get_detailed_stats() -> Result<serde_json::Value, String> {
                 let used_kb: f64 = parts[1].parse().unwrap_or(0.0);
                 let percent: f64 = parts[2].replace("%", "").parse().unwrap_or(0.0);
                 stats["disk"] = serde_json::json!(percent);
-                stats["disk_total"] = serde_json::json!(format!("{:.1} GB", total_kb / 1024.0 / 1024.0));
-                stats["disk_used"] = serde_json::json!(format!("{:.1} GB", used_kb / 1024.0 / 1024.0));
+                stats["disk_total"] =
+                    serde_json::json!(format!("{:.1} GB", total_kb / 1024.0 / 1024.0));
+                stats["disk_used"] =
+                    serde_json::json!(format!("{:.1} GB", used_kb / 1024.0 / 1024.0));
             }
         }
     }
@@ -686,6 +501,9 @@ async fn get_detailed_stats() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 async fn open_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") || url.chars().any(|c| c.is_control()) {
+        return Err("Only HTTPS links are allowed".into());
+    }
     #[cfg(target_os = "linux")]
     {
         Command::new("xdg-open")
@@ -697,10 +515,19 @@ async fn open_url(url: String) -> Result<(), String> {
 }
 
 fn main() {
-  tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![
-        execute_system_command, execute_multiple_commands, execute_full_maintenance, execute_full_maintenance_stream, get_detailed_stats, open_url
-    ])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            execute_operation,
+            system_actions::configure_dns,
+            system_actions::kernel_inventory,
+            system_actions::update_kernel,
+            system_actions::preview_kernel_removal,
+            system_actions::remove_kernel,
+            system_actions::autostart_files,
+            execute_full_maintenance_stream,
+            get_detailed_stats,
+            open_url
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
