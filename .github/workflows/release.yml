@@ -92,7 +92,9 @@ jobs:
             echo "Release $tag already exists; no changes made."
             exit 0
           fi
-          find packages -type f -exec sha256sum {} + > SHA256SUMS
+          find packages -type f -print0 | sort -z | while IFS= read -r -d '' asset; do
+            (cd "$(dirname "$asset")" && sha256sum "$(basename "$asset")")
+          done > SHA256SUMS
           mapfile -t assets < <(find packages -type f)
           gh release create "$tag" "${assets[@]}" SHA256SUMS --target "$GITHUB_SHA" --title "TuxPulse $tag" --notes-file RELEASE_NOTES.md --latest
 
