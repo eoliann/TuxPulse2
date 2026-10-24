@@ -104,16 +104,26 @@ pub fn resolve(name: &str, values: &[String]) -> Result<Operation, String> {
             Err("Operation takes no parameters".into())
         };
     }
-    if values.is_empty() || !values.iter().all(|s| identifier(s)) {
+    if values.is_empty()
+        || !values.iter().all(|s| {
+            identifier(s)
+                && !s.ends_with('-')
+                && ![".rpm", ".deb", ".flatpak", ".flatpakref"]
+                    .iter()
+                    .any(|extension| s.ends_with(extension))
+        })
+    {
         return Err("Invalid operation parameters".into());
     }
     let mut op = match name {
         "apt.info" => fixed("/usr/bin/apt-cache", &["show"], false),
         "arch.info" => fixed("/usr/bin/pacman", &["-Si"], false),
         "dnf.info" => fixed("/usr/bin/dnf", &["info"], false),
-        "apt.install" if values.len() == 1 => {
-            fixed("/usr/bin/apt-get", &["install", "-y", "--"], true)
-        }
+        "apt.install" if values.len() == 1 => fixed(
+            "/usr/bin/apt-get",
+            &["install", "--no-remove", "-y", "--"],
+            true,
+        ),
         "arch.install" if values.len() == 1 => {
             fixed("/usr/bin/pacman", &["-S", "--noconfirm", "--"], true)
         }
@@ -159,6 +169,25 @@ pub fn concrete_kernel(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+pub fn safe_kernel_plan(name: &str, plan: &str) -> bool {
+    let mut found = false;
+    for line in plan.lines() {
+        if line.starts_with("Inst ") {
+            return false;
+        }
+        if let Some(rest) = line
+            .strip_prefix("Remv ")
+            .or_else(|| line.strip_prefix("Purg "))
+        {
+            if rest.split_whitespace().next() != Some(name) {
+                return false;
+            }
+            found = true;
+        }
+    }
+    found && concrete_kernel(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,6 +203,9 @@ mod tests {
             "$(id)",
             "--help",
             "foo\nbar",
+            "linux-image-generic-",
+            "untrusted.rpm",
+            "untrusted.deb",
         ] {
             assert!(resolve("apt.install", &[value.into()]).is_err());
         }
@@ -185,7 +217,7 @@ mod tests {
     fn maps_operations_to_fixed_programs_and_privileges() {
         let op = resolve("apt.install", &["firefox".into()]).unwrap();
         assert_eq!(op.program, "/usr/bin/apt-get");
-        assert_eq!(op.args, ["install", "-y", "--", "firefox"]);
+        assert_eq!(op.args, ["install", "--no-remove", "-y", "--", "firefox"]);
         assert!(op.privileged);
         assert!(!resolve("system.os", &[]).unwrap().privileged);
     }
@@ -203,5 +235,34 @@ mod tests {
         }
         assert!(concrete_kernel("linux-image-6.8.0-47-generic"));
         assert!(concrete_kernel("linux-image-unsigned-6.8.0-47-generic"));
+    }
+
+    #[test]
+    fn kernel_plan_rejects_dependency_removals_and_other_transactions() {
+        let kernel = "linux-image-6.8.0-45-generic";
+        assert!(safe_kernel_plan(
+            kernel,
+            &format!("Reading package lists...\nPurg {} [6.8.0]\n", kernel)
+        ));
+        assert!(safe_kernel_plan(
+            kernel,
+            &format!("Remv {} [6.8.0]\n", kernel)
+        ));
+        assert!(!safe_kernel_plan(
+            kernel,
+            "0 upgraded, 0 newly installed, 0 to remove"
+        ));
+        assert!(!safe_kernel_plan(
+            kernel,
+            &format!("Purg {}\nRemv linux-image-generic\n", kernel)
+        ));
+        assert!(!safe_kernel_plan(
+            kernel,
+            &format!("Purg {}\nInst unexpected-package\n", kernel)
+        ));
+        assert!(!safe_kernel_plan(
+            "linux-image-generic",
+            "Purg linux-image-generic\n"
+        ));
     }
 }

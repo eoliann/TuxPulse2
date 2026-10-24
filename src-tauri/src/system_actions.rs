@@ -125,16 +125,7 @@ fn removal_plan(name: &str) -> CommandResult {
     if !plan.success {
         return plan;
     }
-    let removed: Vec<_> = plan
-        .output
-        .lines()
-        .filter_map(|line| {
-            line.strip_prefix("Remv ")
-                .or_else(|| line.strip_prefix("Purg "))
-        })
-        .filter_map(|line| line.split_whitespace().next())
-        .collect();
-    if removed.is_empty() || removed.iter().any(|p| *p != name) {
+    if !crate::operations::safe_kernel_plan(name, &plan.output) {
         return failure("APT would remove additional packages, or nothing. Review this change in your package manager.".into());
     }
     plan

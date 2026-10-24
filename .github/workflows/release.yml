@@ -25,6 +25,7 @@ jobs:
           rustup default stable
       - run: npm ci
       - run: npm run version:check && npm run lint && npm test
+      - run: npm run build
       - name: Validate shell scripts
         run: bash -n build_all.sh build_deb.sh scripts/build_arch_package.sh
       - name: Rust regression tests

@@ -289,6 +289,8 @@ export default function App() {
   const [showLicense, setShowLicense] = useState(false);
   const [oldKernels, setOldKernels] = useState<any[]>([]);
   const [isKernelUpdating, setIsKernelUpdating] = useState(false);
+  const [kernelRemovalPlan, setKernelRemovalPlan] = useState<{ name: string; output: string } | null>(null);
+  const [isKernelRemoving, setIsKernelRemoving] = useState(false);
   const [cleanerOptions, setCleanerOptions] = useState({ journal: true, packageCache: true });
   const [alertThresholds, setAlertThresholds] = useState({
     cpu: 80,
@@ -949,12 +951,20 @@ export default function App() {
     try {
       const plan: any = await invoke('preview_kernel_removal', { name });
       if (!plan.success) throw new Error(plan.error);
-      if (!window.confirm('Review the package removal plan:\n\n' + plan.output + '\n\nRemove this kernel?')) return;
-      const res: any = await invoke('remove_kernel', { name, expectedPlan: plan.output });
+      setKernelRemovalPlan({ name, output: plan.output });
+    } catch (err) { addAlert('error', String(err)); }
+  };
+
+  const confirmKernelRemoval = async () => {
+    if (!kernelRemovalPlan || isKernelRemoving) return;
+    setIsKernelRemoving(true);
+    try {
+      const res: any = await invoke('remove_kernel', { name: kernelRemovalPlan.name, expectedPlan: kernelRemovalPlan.output });
       if (!res.success) throw new Error(res.error);
       addAlert('success', 'Kernel removed; running and newest backup kernels were preserved.');
       setRefreshCounter(prev => prev + 1);
     } catch (err) { addAlert('error', String(err)); }
+    finally { setKernelRemovalPlan(null); setIsKernelRemoving(false); }
   };
 
   const toggleTheme = () => setTheme((prev: string) => prev === 'light' ? 'dark' : 'light');
@@ -2410,6 +2420,21 @@ USE AT YOUR OWN RISK. TuxPulse is a powerful system tool that performs operation
           )}
         </div>
       </main>
+
+      {kernelRemovalPlan && (
+        <div className="fixed inset-0 z-[110] bg-black/70 flex items-center justify-center p-6" role="dialog" aria-modal="true" aria-labelledby="kernel-removal-title">
+          <div className="bg-[#141414] text-[#E4E3E0] border border-white/20 p-6 max-w-3xl w-full space-y-4">
+            <h2 id="kernel-removal-title" className="text-xl font-bold">Review kernel removal</h2>
+            <p>{kernelRemovalPlan.name}</p>
+            <pre className="max-h-96 overflow-auto text-xs whitespace-pre-wrap">{kernelRemovalPlan.output}</pre>
+            <p className="text-sm opacity-70">The running kernel and newest backup are protected. Administrator authorization follows confirmation.</p>
+            <div className="flex justify-end gap-4">
+              <button autoFocus disabled={isKernelRemoving} onClick={() => setKernelRemovalPlan(null)} className="border px-4 py-2">Cancel</button>
+              <button disabled={isKernelRemoving} onClick={confirmKernelRemoval} className="bg-red-600 text-white px-4 py-2">{isKernelRemoving ? 'Removing...' : 'Confirm removal'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notifications */}
       <div className="fixed bottom-8 right-8 space-y-4 z-[100]">
