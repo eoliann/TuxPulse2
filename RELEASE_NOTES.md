@@ -1,5 +1,5 @@
-# TuxPulse2 6.0.11
+# TuxPulse2 6.0.12
 
-- Fix CachyOS and other Arch-based distributions opening Installer or Packages with the wrong package manager. These screens now use pacman on CachyOS.
-- Keep the background Flatpak inventory check quiet when Flatpak is unavailable. Explicit command errors include the command name.
-- Document how to install the native Arch package on Arch Linux and CachyOS.
+- Respect the GTK window button layout on GNOME Wayland, including left-side controls.
+- Include AppStream metadata with native Linux packages and document uninstall commands for Debian, Fedora, and Arch.
+- Test installation and removal of the native packages on Debian, Fedora, and Arch before publishing.

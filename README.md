@@ -68,10 +68,23 @@ Download the `tuxpulse-*-x86_64.pkg.tar.zst` package from the [latest release](h
 
 ```sh
 sudo pacman -Syu
-sudo pacman -U ./tuxpulse-6.0.11-1-x86_64.pkg.tar.zst
+sudo pacman -U ./tuxpulse-6.0.12-1-x86_64.pkg.tar.zst
 ```
 
 Use the filename you downloaded if it differs from the example. Pacman installs required libraries, including WebKitGTK. Launch **TuxPulse** from the application menu or run `tuxpulse`.
+
+### Uninstall on Linux
+
+Close TuxPulse and use the package manager you installed it with.
+
+| Installation | Command |
+| --- | --- |
+| Debian or Ubuntu (.deb) | `sudo apt remove tux-pulse` |
+| Fedora (.rpm) | `sudo dnf remove tux-pulse` |
+| Arch Linux or CachyOS (.pkg.tar.zst) | `sudo pacman -R tuxpulse` |
+| Experimental Flatpak | `flatpak uninstall org.tuxpulse.TuxPulse` |
+
+For a development build started with `npm run tauri dev`, stop the development process. The development command does not register a system package.
 
 ### Prerequisites
 - Rust & Cargo
