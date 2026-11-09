@@ -68,7 +68,7 @@ Download the `tuxpulse-*-x86_64.pkg.tar.zst` package from the [latest release](h
 
 ```sh
 sudo pacman -Syu
-sudo pacman -U ./tuxpulse-6.0.11-1-x86_64.pkg.tar.zst
+sudo pacman -U ./tuxpulse-6.0.12-1-x86_64.pkg.tar.zst
 ```
 
 Use the filename you downloaded if it differs from the example. Pacman installs required libraries, including WebKitGTK. Launch **TuxPulse** from the application menu or run `tuxpulse`.
