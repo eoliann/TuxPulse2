@@ -108,11 +108,11 @@ jobs:
           case "$DISTRO" in
             Debian)
               apt-get update
-              apt-get install -y ./packages/*.deb
+              apt-get install -y ./packages/deb/*.deb
               remove=(apt-get remove -y tux-pulse)
               ;;
             Fedora)
-              dnf install -y ./packages/*.rpm
+              dnf install -y ./packages/rpm/*.rpm
               remove=(dnf remove -y tux-pulse)
               ;;
             Arch)
