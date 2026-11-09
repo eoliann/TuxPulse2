@@ -13,6 +13,11 @@ build/
 # Tauri
 src-tauri/target/
 src-tauri/binaries/
+/src-tauri/gen/schemas/
+
+# Local packaging and backup files
+/.flatpak-builder/
+*.bak-*
 
 # Misc
 .DS_Store
