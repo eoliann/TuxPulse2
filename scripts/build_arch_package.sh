@@ -24,12 +24,16 @@ rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR/package/usr/bin"
 mkdir -p "$WORK_DIR/package/usr/share/applications"
 mkdir -p "$WORK_DIR/package/usr/share/icons/hicolor/128x128/apps"
+mkdir -p "$WORK_DIR/package/usr/share/metainfo"
 
 install -Dm755 "$BINARY_PATH" "$WORK_DIR/package/usr/bin/tuxpulse"
 
 if [ -f "system_files/tuxpulse.desktop" ]; then
   install -Dm644 "system_files/tuxpulse.desktop" "$WORK_DIR/package/usr/share/applications/tuxpulse.desktop"
 fi
+
+sed 's/TuxPulse\.desktop/tuxpulse.desktop/' system_files/com.eoliann.tuxpulse.metainfo.xml \
+  > "$WORK_DIR/package/usr/share/metainfo/com.eoliann.tuxpulse.metainfo.xml"
 
 if [ -f "src-tauri/icons/128x128.png" ]; then
   install -Dm644 "src-tauri/icons/128x128.png" "$WORK_DIR/package/usr/share/icons/hicolor/128x128/apps/tuxpulse.png"

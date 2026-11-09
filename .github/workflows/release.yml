@@ -71,8 +71,69 @@ jobs:
           path: release/packages/arch/*.pkg.tar.zst
           if-no-files-found: error
 
-  publish:
+  uninstall:
+    name: Install and remove on ${{ matrix.distro }}
     needs: [linux, arch]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Debian
+            image: debian:12
+            artifact: linux-packages
+            desktop: TuxPulse.desktop
+          - distro: Fedora
+            image: fedora:latest
+            artifact: linux-packages
+            desktop: TuxPulse.desktop
+          - distro: Arch
+            image: archlinux:latest
+            artifact: arch-package
+            desktop: tuxpulse.desktop
+    container: ${{ matrix.image }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: packages
+      - name: Check the installed package and its removal
+        env:
+          DISTRO: ${{ matrix.distro }}
+          DESKTOP_ID: ${{ matrix.desktop }}
+        run: |
+          case "$DISTRO" in
+            Debian)
+              apt-get update
+              apt-get install -y ./packages/*.deb
+              remove=(apt-get remove -y tux-pulse)
+              ;;
+            Fedora)
+              dnf install -y ./packages/*.rpm
+              remove=(dnf remove -y tux-pulse)
+              ;;
+            Arch)
+              pacman -Syu --noconfirm
+              pacman -U --noconfirm ./packages/*.pkg.tar.zst
+              remove=(pacman -R --noconfirm tuxpulse)
+              ;;
+          esac
+          binary=/usr/bin/tuxpulse
+          launcher="/usr/share/applications/$DESKTOP_ID"
+          metadata=/usr/share/metainfo/com.eoliann.tuxpulse.metainfo.xml
+          test -x "$binary"
+          test -f "$launcher"
+          grep -F "<launchable type=\"desktop-id\">$DESKTOP_ID</launchable>" "$metadata"
+          "${remove[@]}"
+          test ! -e "$binary"
+          test ! -e "$launcher"
+          test ! -e "$metadata"
+
+  publish:
+    needs: [linux, arch, uninstall]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

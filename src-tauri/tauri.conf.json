@@ -28,6 +28,18 @@
       "deb",
       "rpm"
     ],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/metainfo/com.eoliann.tuxpulse.metainfo.xml": "../system_files/com.eoliann.tuxpulse.metainfo.xml"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/metainfo/com.eoliann.tuxpulse.metainfo.xml": "../system_files/com.eoliann.tuxpulse.metainfo.xml"
+        }
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.eoliann.tuxpulse</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>TuxPulse</name>
+  <summary>Monitor and maintain your Linux system</summary>
+  <description>
+    <p>Inspect resource usage, disks and services, and manage packages and system maintenance from a desktop application.</p>
+  </description>
+  <launchable type="desktop-id">TuxPulse.desktop</launchable>
+  <url type="homepage">https://github.com/eoliann/TuxPulse2</url>
+</component>

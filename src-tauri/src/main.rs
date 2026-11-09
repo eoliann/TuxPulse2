@@ -514,8 +514,50 @@ async fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
+fn use_gtk_decoration_layout(window: &gtk::ApplicationWindow) {
+    use gtk::prelude::*;
+
+    let Some(titlebar) = window.titlebar() else {
+        return;
+    };
+    // Tao wraps its Wayland header bar in a GTK event box.
+    let header = titlebar
+        .downcast_ref::<gtk::HeaderBar>()
+        .cloned()
+        .or_else(|| {
+            titlebar
+                .downcast_ref::<gtk::EventBox>()?
+                .child()?
+                .downcast()
+                .ok()
+        });
+    if let Some(header) = header {
+        header.set_decoration_layout(None);
+        // Tao reapplies its layout when the window's resizability changes.
+        let header = header.downgrade();
+        window.connect_resizable_notify(move |_| {
+            if let Some(header) = header.upgrade() {
+                header.set_decoration_layout(None);
+            }
+        });
+    }
+}
+
 fn main() {
     tauri::Builder::default()
+        .setup(|app| {
+            #[cfg(target_os = "linux")]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    use_gtk_decoration_layout(&window.gtk_window()?);
+                }
+            }
+            #[cfg(not(target_os = "linux"))]
+            let _ = app;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             execute_operation,
             system_actions::configure_dns,
