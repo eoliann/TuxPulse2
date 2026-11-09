@@ -1,4 +1,5 @@
 import { nativeOperation } from './nativeOperations';
+import { distroFamily, packageListCommand, type DistroFamily } from './distro';
 import { DNS_PROVIDERS, detectDNS } from './dns';
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { APPS_CATALOG, type CatalogApp } from './constants/apps';
@@ -69,10 +70,9 @@ const CATALOG_MANAGERS = {
   fedora: { key: 'dnf', info: ['dnf', 'info'], install: ['dnf', 'install', '-y'] },
 } as const;
 
-type CatalogDistro = keyof typeof CATALOG_MANAGERS | 'unknown';
 type CatalogSource = { kind: 'native' | 'flatpak'; id: string };
 
-function catalogNativePackage(app: CatalogApp, distro: CatalogDistro) {
+function catalogNativePackage(app: CatalogApp, distro: DistroFamily) {
   return distro === 'unknown' ? undefined : app.packages[CATALOG_MANAGERS[distro].key];
 }
 
@@ -261,7 +261,6 @@ export default function App() {
     // This check must run once on startup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [distroType, setDistroType] = useState<CatalogDistro>('unknown');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
@@ -291,6 +290,7 @@ export default function App() {
     load: [0.0, 0.0, 0.0],
     distro: 'Detecting...'
   });
+  const distroType = distroFamily(kernelInfo.distro);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [maintenanceOutput, setMaintenanceOutput] = useState('');
   const [maintenanceProgress, setMaintenanceProgress] = useState(0);
@@ -456,34 +456,11 @@ export default function App() {
 
     let completedWithErrors = false;
 
-    type SupportedDistro = 'debian' | 'arch' | 'fedora' | 'unknown';
-
     const appendOutput = (text: string) => {
       setMaintenanceOutput((prev: string) => prev + text);
     };
 
-    const normalizeDistro = (value: string): SupportedDistro => {
-      const distro = value.toLowerCase();
-      if (distro.includes('arch') || distro.includes('manjaro') || distro.includes('endeavouros') || distro.includes('cachyos')) {
-        return 'arch';
-      }
-      if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint') || distro.includes('pop')) {
-        return 'debian';
-      }
-      if (distro.includes('fedora') || distro.includes('redhat') || distro.includes('centos')) {
-        return 'fedora';
-      }
-      return 'unknown';
-    };
-
-    const detectMaintenanceDistro = async (): Promise<SupportedDistro> => {
-      const fromState = distroType !== 'unknown' ? distroType : normalizeDistro(kernelInfo.distro || '');
-      if (fromState !== 'unknown') return fromState;
-
-      return 'unknown';
-    };
-
-    const getFullMaintenancePlan = (profile: SupportedDistro): string[] => {
+    const getFullMaintenancePlan = (profile: DistroFamily): string[] => {
       if (profile === 'debian') {
         return [
           'sudo apt-get update',
@@ -525,7 +502,7 @@ export default function App() {
         addAlert('info', 'Full maintenance started');
         setMaintenanceProgress(10);
 
-        const detectedDistro = await detectMaintenanceDistro();
+        const detectedDistro = distroType;
         if (detectedDistro === 'unknown') {
           completedWithErrors = true;
           appendOutput('\n[ERROR] Unsupported or undetected Linux distribution. Full Maintenance was not executed.\n');
@@ -681,7 +658,7 @@ export default function App() {
     try {
       const result: any = await invoke('execute_operation', nativeOperation(command, args));
       if (!result.success && reportErrors) {
-        addAlert('error', `Command failed: ${result.error}`);
+        addAlert('error', `${command} failed: ${result.error}`);
       }
       return result;
     } catch (err) {
@@ -724,21 +701,17 @@ export default function App() {
     if (!isNative) return;
 
     const fetchData = async () => {
+      let distroName = kernelInfo.distro;
       // Always fetch kernel/distro info if not available
-      if (!kernelInfo.distro || kernelInfo.distro === 'Detecting...') {
+      if (!distroName || distroName === 'Detecting...') {
         const uname = await runCommand('uname', ['-a']);
         const host = await runCommand('hostnamectl');
         const osRelease = await runCommand('cat', ['/etc/os-release']);
 
-        let distroName = 'Unknown Linux';
-
-        if (host.success) {
-          const distroMatch = host.output.match(/Operating System: (.*)/);
-          if (distroMatch) distroName = distroMatch[1];
-        } else if (osRelease.success) {
-          const nameMatch = osRelease.output.match(/^PRETTY_NAME="(.*)"/m) || osRelease.output.match(/^NAME="(.*)"/m);
-          if (nameMatch) distroName = nameMatch[1];
-        }
+        distroName = (host.success && host.output.match(/Operating System: (.*)/)?.[1]?.trim())
+          || (osRelease.success && osRelease.output.match(/^PRETTY_NAME="(.*)"/m)?.[1])
+          || (osRelease.success && osRelease.output.match(/^NAME="(.*)"/m)?.[1])
+          || 'Unknown Linux';
 
         if (uname.success) {
           const parts = uname.output.split(' ');
@@ -753,11 +726,6 @@ export default function App() {
         } else {
           setKernelInfo((prev: any) => ({ ...prev, distro: distroName }));
         }
-
-        const dl = distroName.toLowerCase();
-        if (dl.includes('ubuntu') || dl.includes('debian') || dl.includes('mint') || dl.includes('pop')) setDistroType('debian');
-        else if (dl.includes('arch') || dl.includes('manjaro') || dl.includes('endeavour')) setDistroType('arch');
-        else if (dl.includes('fedora') || dl.includes('redhat') || dl.includes('centos')) setDistroType('fedora');
       }
 
       if (activeTab === 'processes') {
@@ -810,23 +778,10 @@ export default function App() {
           routes: route.success ? route.output : 'N/A'
         });
       } else if (activeTab === 'packages' || activeTab === 'installer') {
-        let cmd = 'dpkg';
-        let args = ['-l'];
-        const distro = kernelInfo.distro.toLowerCase();
-
-        if (distro.includes('arch') || distro.includes('manjaro')) {
-          cmd = 'pacman';
-          args = ['-Q'];
-        } else if (distro.includes('fedora') || distro.includes('redhat')) {
-          cmd = 'rpm';
-          args = ['-qa'];
-        } else if (distro.includes('suse')) {
-          cmd = 'zypper';
-          args = ['se', '--installed-only'];
-        }
-
-        const res = await runCommand(cmd, args);
-        if (res.success) {
+        const query = packageListCommand(distroName);
+        const res = query && await runCommand(...query);
+        if (query && res?.success) {
+          const [cmd] = query;
           let parsed: any[] = [];
           if (cmd === 'dpkg') {
             const lines = res.output.split('\n').slice(5);
@@ -849,7 +804,7 @@ export default function App() {
         }
 
         // Fetch Flatpaks
-        const flatpakRes = await runCommand('flatpak', ['list', '--columns=application']);
+        const flatpakRes = await runCommand('flatpak', ['list', '--columns=application'], false, false);
         if (flatpakRes.success) {
           setFlatpaks(flatpakRes.output.split('\n').filter(Boolean).map((line: string) => line.trim()));
         }
@@ -882,7 +837,7 @@ export default function App() {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, [isNative, activeTab, refreshCounter]);
+  }, [isNative, activeTab, refreshCounter, kernelInfo.distro]);
 
   // Dashboard Real-time Stats
   useEffect(() => {
