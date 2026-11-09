@@ -1,7 +1,7 @@
 import { nativeOperation } from './nativeOperations';
 import { DNS_PROVIDERS, detectDNS } from './dns';
 import React, { useState, useEffect, ChangeEvent } from 'react';
-import { APPS_CATALOG } from './constants/apps';
+import { APPS_CATALOG, type CatalogApp } from './constants/apps';
 import { APP_VERSION } from './version';
 // @ts-ignore
 import { invoke } from '@tauri-apps/api/core';
@@ -62,6 +62,19 @@ import { cn } from './lib/utils';
 // TuxPulse update check helpers - v6.0.7
 const TUXPULSE_LATEST_RELEASE_API = 'https://api.github.com/repos/eoliann/TuxPulse2/releases/latest';
 const TUXPULSE_RELEASES_URL = 'https://github.com/eoliann/TuxPulse2/releases';
+
+const CATALOG_MANAGERS = {
+  debian: { key: 'apt', info: ['apt-cache', 'show'], install: ['apt-get', 'install', '-y'] },
+  arch: { key: 'pacman', info: ['pacman', '-Si'], install: ['pacman', '-S', '--noconfirm'] },
+  fedora: { key: 'dnf', info: ['dnf', 'info'], install: ['dnf', 'install', '-y'] },
+} as const;
+
+type CatalogDistro = keyof typeof CATALOG_MANAGERS | 'unknown';
+type CatalogSource = { kind: 'native' | 'flatpak'; id: string };
+
+function catalogNativePackage(app: CatalogApp, distro: CatalogDistro) {
+  return distro === 'unknown' ? undefined : app.packages[CATALOG_MANAGERS[distro].key];
+}
 
 type UpdateCheckStatus = 'idle' | 'checking' | 'available' | 'current' | 'error';
 
@@ -248,10 +261,11 @@ export default function App() {
     // This check must run once on startup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [distroType, setDistroType] = useState<'debian' | 'arch' | 'fedora' | 'unknown'>('unknown');
+  const [distroType, setDistroType] = useState<CatalogDistro>('unknown');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
+  const [isBatchInstalling, setIsBatchInstalling] = useState(false);
   const [selectedDNS, setSelectedDNS] = useState<string>('default');
   const [isDNSSetting, setIsDNSSetting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -396,12 +410,10 @@ export default function App() {
   const catalogStats = React.useMemo(() => {
     let total = 0;
     let installed = 0;
-    Object.values(APPS_CATALOG).forEach((categoryApps: any[]) => {
-      categoryApps.forEach((app: any) => {
+    Object.values(APPS_CATALOG).forEach(categoryApps => {
+      categoryApps.forEach(app => {
         total++;
-        let nativePkg = app.packages.apt;
-        if (distroType === 'arch') nativePkg = app.packages.pacman;
-        else if (distroType === 'fedora') nativePkg = app.packages.dnf;
+        const nativePkg = catalogNativePackage(app, distroType);
 
         const isNativeInstalled = nativePkg && packages.some((p: any) => p.name === nativePkg);
         const isFlatpakInstalled = app.flatpak && flatpaks.includes(app.flatpak);
@@ -413,57 +425,28 @@ export default function App() {
 
   // Check package availability when entering installer tab
   useEffect(() => {
-    if (activeTab === 'installer' && isNative) {
-      const distro = kernelInfo.distro.toLowerCase();
-      const pkgsToCheck = Object.values(APPS_CATALOG).flat().map((app: any) => {
-        if (distro.includes('arch') || distro.includes('manjaro')) return app.packages.pacman;
-        if (distro.includes('fedora') || distro.includes('redhat')) return app.packages.dnf;
-        return app.packages.apt;
-      }).filter((p: string) => p && !availablePackages.has(p));
+    if (activeTab !== 'installer' || !isNative || distroType === 'unknown') return;
 
-      if (pkgsToCheck.length > 0) {
-        // Check in batches of 50 to avoid command line length limits
-        for (let i = 0; i < pkgsToCheck.length; i += 50) {
-          const batch = pkgsToCheck.slice(i, i + 50);
-          let cmd = '';
-          let args: string[] = [];
-          if (distro.includes('ubuntu') || distro.includes('debian') || distro.includes('mint')) {
-            cmd = 'apt-cache';
-            args = ['show', ...batch];
-          } else if (distro.includes('arch') || distro.includes('manjaro')) {
-            cmd = 'pacman';
-            args = ['-Si', ...batch];
-          } else if (distro.includes('fedora') || distro.includes('redhat')) {
-            cmd = 'dnf';
-            args = ['info', ...batch];
-          }
-
-          if (cmd) {
-            runCommand(cmd, args).then(res => {
-              // Process output even if success is false (some packages might be missing)
-              // We check both stdout and stderr because some PMs report info to stderr for missing pkgs
-              const combinedOutput = (res.output || "") + (res.error || "");
-              if (combinedOutput) {
-                const found = new Set<string>();
-                batch.forEach((p: string) => {
-                  const outputLower = combinedOutput.toLowerCase();
-                  const pLower = p.toLowerCase();
-                  // More robust check for package presence in info/show output
-                  if (outputLower.includes(`package: ${pLower}`) ||
-                      outputLower.includes(`name : ${pLower}`) ||
-                      outputLower.includes(`name: ${pLower}`) ||
-                      (distro.includes('arch') && outputLower.includes(`repository     : `) && outputLower.includes(pLower))) {
-                    found.add(p);
-                  }
-                });
-                setAvailablePackages((prev: Set<string>) => new Set([...prev, ...found]));
-              }
-            });
-          }
-        }
+    const pending = [...new Set(Object.values(APPS_CATALOG).flat()
+      .map(app => catalogNativePackage(app, distroType))
+      .filter((pkg): pkg is string => !!pkg && !availablePackages.has(pkg)))];
+    const [command, info] = CATALOG_MANAGERS[distroType].info;
+    let cancelled = false;
+    const checkPackages = async () => {
+      for (let i = 0; i < pending.length && !cancelled; i += 50) {
+        const batch = pending.slice(i, i + 50);
+        const result = await runCommand(command, [info, ...batch], false, false);
+        if (cancelled) return;
+        const names = new Set(Array.from(
+          `${result.output || ''}\n${result.error || ''}`.matchAll(/^(?:Package|Name)\s*:\s*(\S+)/gm),
+          match => match[1],
+        ));
+        setAvailablePackages(prev => new Set([...prev, ...batch.filter(pkg => names.has(pkg))]));
       }
-    }
-  }, [activeTab, isNative, kernelInfo.distro]);
+    };
+    void checkPackages();
+    return () => { cancelled = true; };
+  }, [activeTab, isNative, distroType, refreshCounter]);
 
   const [systemLogs, setSystemLogs] = useState<string[]>([]);
   const runMaintenance = async (cmd: string) => {
@@ -690,21 +673,43 @@ export default function App() {
     }
   };
 
-  const runCommand = async (command: string, args: string[] = [], sudo: boolean = false) => {
+  const runCommand = async (command: string, args: string[] = [], sudo: boolean = false, reportErrors = true) => {
     if (!isNative) {
       addAlert('warning', `Simulating command: ${command} ${args.join(' ')}`);
       return { success: true, output: "Simulation mode: No native backend detected." };
     }
     try {
       const result: any = await invoke('execute_operation', nativeOperation(command, args));
-      if (!result.success) {
+      if (!result.success && reportErrors) {
         addAlert('error', `Command failed: ${result.error}`);
       }
       return result;
     } catch (err) {
-      addAlert('error', `System error: ${err}`);
+      if (reportErrors) addAlert('error', `System error: ${err}`);
       return { success: false, error: String(err) };
     }
+  };
+
+  const catalogAppState = (app: CatalogApp) => {
+    const nativePkg = catalogNativePackage(app, distroType);
+    const isNativeInstalled = !!nativePkg && packages.some(p => p.name === nativePkg);
+    const isFlatpakInstalled = !!app.flatpak && flatpaks.includes(app.flatpak);
+    const nativeSource: CatalogSource | undefined = nativePkg && availablePackages.has(nativePkg)
+      ? { kind: 'native', id: nativePkg }
+      : undefined;
+    const flatpakSource: CatalogSource | undefined = app.flatpak
+      ? { kind: 'flatpak', id: app.flatpak }
+      : undefined;
+    return { nativePkg, isNativeInstalled, isFlatpakInstalled, nativeSource, flatpakSource };
+  };
+
+  const installCatalogApp = async (source: CatalogSource) => {
+    if (source.kind === 'flatpak') {
+      return runCommand('flatpak', ['install', '-y', 'flathub', source.id]);
+    }
+    if (distroType === 'unknown') return { success: false };
+    const [command, ...args] = CATALOG_MANAGERS[distroType].install;
+    return runCommand(command, [...args, source.id], true);
   };
 
   useEffect(() => {
@@ -1766,30 +1771,27 @@ export default function App() {
                 <div className="flex gap-4">
                   {selectedApps.length > 0 && (
                     <button
+                      disabled={isBatchInstalling}
                       onClick={async () => {
-                        addAlert('info', `Batch installing ${selectedApps.length} apps...`);
-                        // This is a simplified batch install
-                        for (const appId of selectedApps) {
-                          // Find app in catalog
-                          let app: any = null;
-                          Object.values(APPS_CATALOG).forEach((cat: any[]) => {
-                            const found = cat.find((a: any) => a.id === appId);
-                            if (found) app = found;
-                          });
-                          if (app) {
-                            const distro = kernelInfo.distro.toLowerCase();
-                            let nativePkg = app.packages.apt;
-                            if (distro.includes('arch')) nativePkg = app.packages.pacman;
-                            if (nativePkg) {
-                              let installCmd = distro.includes('arch') ? 'pacman' : 'apt-get';
-                              let args = distro.includes('arch') ? ['-S', '--noconfirm', nativePkg] : ['install', '-y', nativePkg];
-                              await runCommand(installCmd, args, true);
-                            }
+                        setIsBatchInstalling(true);
+                        try {
+                          addAlert('info', `Batch installing ${selectedApps.length} apps...`);
+                          let installed = 0;
+                          const selected = new Set(selectedApps);
+                          for (const app of Object.values(APPS_CATALOG).flat()) {
+                            if (!selected.has(app.id)) continue;
+                            const { isNativeInstalled, isFlatpakInstalled, nativeSource, flatpakSource } = catalogAppState(app);
+                            const source = nativeSource ?? flatpakSource;
+                            if (!source || isNativeInstalled || isFlatpakInstalled) continue;
+                            if ((await installCatalogApp(source)).success) installed++;
                           }
+                          setSelectedApps([]);
+                          setRefreshCounter(prev => prev + 1);
+                          const allInstalled = installed === selected.size;
+                          addAlert(allInstalled ? 'success' : 'warning', `Installed ${installed} of ${selected.size} selected apps.`);
+                        } finally {
+                          setIsBatchInstalling(false);
                         }
-                        setSelectedApps([]);
-                        setRefreshCounter((prev: number) => prev + 1);
-                        addAlert('success', 'Batch installation completed');
                       }}
                       className="px-4 py-2 bg-blue-600 text-white text-[10px] font-bold uppercase hover:bg-blue-700 transition-all"
                     >
@@ -1842,13 +1844,8 @@ export default function App() {
                     <h3 className="text-sm font-bold uppercase tracking-[0.2em] opacity-40 border-b border-current/10 pb-2">{category}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {filteredApps.map(app => {
-                        let nativePkg = app.packages.apt;
-                        if (distroType === 'arch') nativePkg = app.packages.pacman;
-                        else if (distroType === 'fedora') nativePkg = app.packages.dnf;
-
-                        const isNativeInstalled = nativePkg && packages.some((p: any) => p.name === nativePkg);
-                        const isFlatpakInstalled = app.flatpak && flatpaks.includes(app.flatpak);
-                        const isNativeAvailable = nativePkg && (availablePackages.has(nativePkg) || isNativeInstalled);
+                        const { nativePkg, isNativeInstalled, isFlatpakInstalled, nativeSource, flatpakSource } = catalogAppState(app);
+                        const canInstall = !isNativeInstalled && !isFlatpakInstalled && Boolean(nativeSource || flatpakSource);
 
                         return (
                           <div key={app.id} className={cn(
@@ -1863,7 +1860,8 @@ export default function App() {
                               )}
                               <input
                                 type="checkbox"
-                                checked={selectedApps.includes(app.id)}
+                                disabled={!canInstall || isBatchInstalling}
+                                checked={canInstall && selectedApps.includes(app.id)}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                   if (e.target.checked) setSelectedApps((prev: string[]) => [...prev, app.id]);
                                   else setSelectedApps((prev: string[]) => prev.filter((id: string) => id !== app.id));
@@ -1886,14 +1884,11 @@ export default function App() {
                                 <>
                                   {nativePkg && (
                                     <button
-                                      disabled={!isNativeAvailable}
+                                      disabled={!nativeSource || isBatchInstalling}
                                       onClick={async () => {
+                                        if (!nativeSource) return;
                                         addAlert('info', `Installing ${app.name} (Native)...`);
-                                        let installCmd = 'apt-get';
-                                        let args = ['install', '-y', nativePkg!];
-                                        if (distroType === 'arch') { installCmd = 'pacman'; args = ['-S', '--noconfirm', nativePkg!]; }
-                                        else if (distroType === 'fedora') { installCmd = 'dnf'; args = ['install', '-y', nativePkg!]; }
-                                        const res = await runCommand(installCmd, args, true);
+                                        const res = await installCatalogApp(nativeSource);
                                         if (res.success) {
                                           addAlert('success', `${app.name} installed successfully`);
                                           setRefreshCounter((prev: number) => prev + 1);
@@ -1901,17 +1896,18 @@ export default function App() {
                                       }}
                                       className={cn(
                                         "flex-1 py-2 text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-2",
-                                        !isNativeAvailable ? "opacity-20 cursor-not-allowed grayscale" : (theme === 'light' ? "bg-[#141414] text-[#E4E3E0] hover:bg-blue-600" : "bg-[#E4E3E0] text-[#141414] hover:bg-blue-400")
+                                        !nativeSource ? "opacity-20 cursor-not-allowed grayscale" : (theme === 'light' ? "bg-[#141414] text-[#E4E3E0] hover:bg-blue-600" : "bg-[#E4E3E0] text-[#141414] hover:bg-blue-400")
                                       )}
                                     >
                                       <Download size={12} /> Native
                                     </button>
                                   )}
-                                  {app.flatpak && (
+                                  {flatpakSource && (
                                     <button
+                                      disabled={isBatchInstalling}
                                       onClick={async () => {
                                         addAlert('info', `Installing ${app.name} (Flatpak)...`);
-                                        const res = await runCommand('flatpak', ['install', '-y', 'flathub', app.flatpak]);
+                                        const res = await installCatalogApp(flatpakSource);
                                         if (res.success) {
                                           addAlert('success', `${app.name} installed successfully`);
                                           setRefreshCounter((prev: number) => prev + 1);
@@ -1924,6 +1920,9 @@ export default function App() {
                                     >
                                       <Layers size={12} /> Flatpak
                                     </button>
+                                  )}
+                                  {!nativePkg && !flatpakSource && (
+                                    <span className="text-xs opacity-60">No install source for this distribution</span>
                                   )}
                                 </>
                               ) : (
