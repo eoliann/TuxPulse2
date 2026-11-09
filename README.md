@@ -62,6 +62,17 @@
 
 ## 🚀 Installation
 
+### Arch Linux and CachyOS
+
+Download the `tuxpulse-*-x86_64.pkg.tar.zst` package from the [latest release](https://github.com/eoliann/TuxPulse2/releases/latest). Open a terminal in the download directory, update your system, then install the archive with pacman.
+
+```sh
+sudo pacman -Syu
+sudo pacman -U ./tuxpulse-6.0.11-1-x86_64.pkg.tar.zst
+```
+
+Use the filename you downloaded if it differs from the example. Pacman installs required libraries, including WebKitGTK. Launch **TuxPulse** from the application menu or run `tuxpulse`.
+
 ### Prerequisites
 - Rust & Cargo
 - Node.js & npm
