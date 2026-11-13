@@ -15,6 +15,25 @@
 ![Lang](https://img.shields.io/badge/Lang-TypeScript_&_JavaScript_&_Shell_&_Rust_&_Python_&_HTML_&_CSS-blue?style=plastic)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=plastic)](LICENSE.md)
 
+<details open>
+<summary><b>Downloads · daily (cumulative)</b></summary>
+
+<img src=".github/downloads/chart.svg" alt="Daily download progress" width="760">
+
+</details>
+<details>
+<summary><b>Downloads · monthly</b></summary>
+
+<img src=".github/downloads/chart-monthly.svg" alt="Monthly downloads" width="760">
+
+</details>
+<details>
+<summary><b>Downloads · yearly</b></summary>
+
+<img src=".github/downloads/chart-yearly.svg" alt="Yearly downloads" width="760">
+
+</details>
+
 # TuxPulse2
 
 **TuxPulse** is a professional, lightweight system monitoring and management toolkit for Linux distributions. Built with React and Tauri, it provides real-time insights into your system's health and powerful tools for maintenance.
