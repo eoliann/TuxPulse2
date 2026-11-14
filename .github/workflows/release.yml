@@ -144,6 +144,7 @@ jobs:
         with:
           path: packages
       - name: Publish release after all builds and tests pass
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -153,9 +154,55 @@ jobs:
             echo "Release $tag already exists; no changes made."
             exit 0
           fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
           find packages -type f -print0 | sort -z | while IFS= read -r -d '' asset; do
             (cd "$(dirname "$asset")" && sha256sum "$(basename "$asset")")
           done > SHA256SUMS
           mapfile -t assets < <(find packages -type f)
           gh release create "$tag" "${assets[@]}" SHA256SUMS --target "$GITHUB_SHA" --title "$tag" --notes-file RELEASE_NOTES.md --latest
 
+
+      # A release created with GITHUB_TOKEN does not trigger other workflows, so the
+      # Telegram announcement runs here, only when a new release was just published.
+      # Secrets: TG_BOT_TOKEN, TG_CHATS ("chat_id" or "chat_id:topic_id", comma-separated).
+      - name: Notify Telegram
+        if: steps.publish.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHATS: ${{ secrets.TG_CHATS }}
+          RELEASE_TAG: ${{ steps.publish.outputs.tag }}
+        run: |
+          if [ -z "$TG_BOT_TOKEN" ] || [ -z "$TG_CHATS" ]; then
+            echo "::warning::TG_BOT_TOKEN or TG_CHATS is not set; skipping the Telegram announcement."
+            exit 0
+          fi
+          release=$(gh release view "$RELEASE_TAG" --json url,assets)
+          url=$(jq -r '.url' <<< "$release")
+          # One line per package: "⬇️ <a href=...>label</a>"
+          links=$(jq -r '.assets[] | select(.name | test("[.](deb|rpm|zst)$")) |
+            "⬇️ <a href=\"\(.url)\">\(if (.name|endswith(".deb")) then "Debian/Ubuntu/Mint (.deb)"
+              elif (.name|endswith(".rpm")) then "Fedora/openSUSE (.rpm)" else "Arch (.pkg.tar.zst)" end)</a>"' <<< "$release")
+          text=$(printf '📢 <b>TuxPulse are o nouă versiune pe GitHub!</b>\n<b>%s</b>\n\n👉 Cod gratuit și open source, fără reclame sau spyware.\n\n👉 <a href="%s">Mergi la pagina noii versiuni</a>\n%s' \
+            "$RELEASE_TAG" "$url" "$links")
+
+          failed=0
+          IFS=',' read -r -a chats <<< "$TG_CHATS"
+          for item in "${chats[@]}"; do
+            item=$(xargs <<< "$item")
+            [ -z "$item" ] && continue
+            args=(-d parse_mode=HTML -d disable_web_page_preview=true --data-urlencode "text=$text")
+            if [[ "$item" == *:* ]]; then
+              args+=(-d "chat_id=${item%%:*}" -d "message_thread_id=${item##*:}")
+            else
+              args+=(-d "chat_id=$item")
+            fi
+            response=$(curl -sSg --max-time 30 "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" "${args[@]}") || response='{"ok":false,"description":"request failed"}'
+            if jq -e '.ok' <<< "$response" > /dev/null; then
+              echo "Sent to $item"
+            else
+              echo "::warning::Sending to $item failed: $(jq -r '.description // .' <<< "$response")"
+              failed=1
+            fi
+          done
+          exit $failed
